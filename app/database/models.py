@@ -1,6 +1,6 @@
 from sqlalchemy.orm import DeclarativeBase,Mapped,mapped_column,relationship
 from sqlalchemy import String,Integer,BigInteger,MetaData,Boolean,Enum,ForeignKey,DateTime
-from app.database.roles import OrderRoleUser,TaskStatus,TaskPriority
+from app.database.roles import OrderRoleUser,TaskStatus,TaskPriority,EmailTokensEnum
 from typing import List
 from datetime import datetime,date
 
@@ -92,4 +92,22 @@ class Comments(Base):
     author_id:Mapped[int] = mapped_column(ForeignKey("users.id"), nullable = False)
     body:Mapped[str] = mapped_column(String(60))
 
-    author:Mapped["Users"] = relationship()
+    author:Mapped["Users"] = relationship(back_populates="comment")
+    task:Mapped["Tasks"] = relationship(back_populates="comment")
+
+class TaskHistory(Base):
+    __tablename__ = "task_history"
+    id:Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id:Mapped[int] = mapped_column(ForeignKey("users.id"))
+    task_id:Mapped[int] = mapped_column(ForeignKey("tasks.id"))
+    field:Mapped[str] = mapped_column(String(60))
+    old_value:Mapped[str] = mapped_column(String(40))
+    new_value:Mapped[str] = mapped_column(String(40))
+
+class EmailTokens(Base):
+    id:Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id:Mapped[int] = mapped_column(ForeignKey("users.id"))
+    token:Mapped[str] = mapped_column(String(225), nullable=False)
+    purpose:Mapped[Enum] = mapped_column(Enum(EmailTokensEnum, name = "email_tokens_enum",create_type = False), nullable=False)
+    expires_at:Mapped[DateTime] = mapped_column(datetime,nullable=False)
+    used_at:Mapped[DateTime] = mapped_column(datetime,nullable=False)

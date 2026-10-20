@@ -16,3 +16,8 @@ class TaskPriority(Enum):
     MEDIUM = "medium"
     HIGH = "high"
     URGENT = "urgent"
+
+class EmailTokensEnum(Enum):
+    VERIFY = "verify"
+    RESET = "reset"
+
