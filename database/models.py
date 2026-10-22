@@ -1,10 +1,9 @@
 from sqlalchemy.orm import DeclarativeBase,Mapped,mapped_column,relationship
-from sqlalchemy import String,Integer,BigInteger,MetaData,Boolean,Enum,ForeignKey,DateTime
-from app.database.roles import OrderRoleUser,TaskStatus,TaskPriority,EmailTokensEnum
+from sqlalchemy import String,BigInteger,MetaData,Enum,ForeignKey,DateTime
+from database.roles import OrderRoleUser,TaskStatus,TaskPriority,EmailTokensEnum
 from typing import List
 from datetime import datetime,date
-from app.database.db import engine
-metadata = MetaData()
+from database.db import engine
 
 class Base(DeclarativeBase):
     pass
@@ -17,7 +16,7 @@ class Projects(Base):
     description:Mapped[str] = mapped_column(String(225))
     owner_id:Mapped[int] = mapped_column(ForeignKey("users.id"))
 
-    user:Mapped[List["Users"]] = relationship(back_populates="project")
+    user:Mapped["Users"] = relationship(back_populates="project")
     task:Mapped[List["Tasks"]] = relationship(back_populates="project")
     project_member:Mapped[List["ProjectMembers"]] = relationship(back_populates="project")
 
@@ -25,12 +24,12 @@ class Users(Base):
     __tablename__ = "users"
 
     id:Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    email:Mapped[str] = mapped_column(String(40), unique=True)
+    email:Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
     full_name:Mapped[str] = mapped_column(String(60), nullable=False, unique = True)
     hashed_password:Mapped[str] = mapped_column(String(225), nullable=False)
     role:Mapped[Enum] = mapped_column(Enum(OrderRoleUser,name = 'order_status_enum', create_type = False),nullable=False)
-    is_active:Mapped[bool] = mapped_column(nullable=False)
-    is_verified:Mapped[bool] = mapped_column(nullable=False)
+    is_active:Mapped[bool] = mapped_column(nullable=False, default = True)
+    is_verified:Mapped[bool] = mapped_column(nullable=False, default= True)
 
     project:Mapped[List["Projects"]] = relationship(back_populates="user")
     project_member:Mapped[List["ProjectMembers"]] = relationship(back_populates="user")
@@ -91,7 +90,7 @@ class Comments(Base):
     id:Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     task_id:Mapped[int] = mapped_column(ForeignKey("tasks.id"), nullable = False, ondelete = "CASCADE")
     author_id:Mapped[int] = mapped_column(ForeignKey("users.id"), nullable = False, ondelete = "CASCADE")
-    body:Mapped[str] = mapped_column(String(60))
+    body:Mapped[str] = mapped_column(String(225))
 
     author:Mapped["Users"] = relationship(back_populates="comment")
     task:Mapped["Tasks"] = relationship(back_populates="comment")
