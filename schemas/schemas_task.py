@@ -22,7 +22,7 @@ class UsersTasks(BaseModel):
     full_name: str
 
     model_config = ConfigDict(from_attributes=True)
-    
+
 class ProjectTask(BaseModel):
     id: int
     name: str
@@ -36,3 +36,12 @@ class TaskResponse(BaseModel):
     description:Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+#------------------- PATCH REQUEST TASKS ------------------------
+
+class TaskUpdate(BaseModel):
+    id: int
+    title: str
+    description: str
+    
+    

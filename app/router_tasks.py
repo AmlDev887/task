@@ -41,10 +41,11 @@ def create_task(task: TaskScheme, id: int,
     return "Сохранено"
 
     
-@app.get("/projects/{id}/tasks", response_model=TaskResponse)
+@app.get("/projects/{id}/tasks", response_model=list[TaskResponse])
 def task_get_response(id: int, 
                       db: Session = Depends(get_db),
                       creator_id: int = Depends(scan_token)):
+    """Получение всех тасков"""
 
     stmt = select(Tasks).options(joinedload(Tasks.user),
                                     joinedload(Tasks.task)).where(Tasks.id == id)
@@ -52,7 +53,26 @@ def task_get_response(id: int,
     result = db.execute(stmt).saclars().all()
     return result
 
+@app.get("/tasks/{id}",response_model=TaskScheme)
+def all_task(id: int, 
+             db: Session = Depends(get_db)):
+    """Получение одного таска"""
+    stmt = select(Tasks).where(Tasks.id == id)
+    result = db.execute(stmt).scalars_one_or_none()
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            details = "Пользователь не найден"
+        )
+    return result
 
 
+@app.patch("/tasks/{id}")
+def update_task(id: int, 
+                db: Session = Depends(get_db),
+                task: ):
 
     
+
+
+
