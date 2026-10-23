@@ -93,4 +93,39 @@ def update_task(id: int,
     return result
 
 
-@app.
+@app.delete("/tasks/{id}")
+def task_delete(id: int, 
+                db: Session = Depends(get_db),
+                creator_id: int = Depends(scan_token)):
+    
+    stmt = select(Tasks).where(Tasks.id == id)
+    result = db.execute(stmt).scalars().one_or_none()
+    
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail = "Таск не найдено "
+        )
+    result.is_deleted = True
+    db.commit()
+    
+    return "Удалено!"
+
+@app.get("/tasks/{id}/history", response_model = TaskScheme)
+def task_restore(id: int,
+                 creator_id: int = Depends(scan_token), 
+                 db: Session = Depends(get_db)):
+    
+    stmt = select(Tasks).where(Tasks.id == id, Tasks.is_deleted == True)
+    result = db.execute(stmt).scalars().one_or_none()
+    if result:
+        result.is_deleted = False
+        db.commit()
+        db.refresh(result)
+        return "Восстановлено!"
+    
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail = "Не найдено"
+    )
+

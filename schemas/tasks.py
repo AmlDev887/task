@@ -38,5 +38,4 @@ class TaskUpdate(BaseModel):
     id: int
     title: str
     description: str
-    
-    
+
