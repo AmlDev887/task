@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, FastAPI, status
 from database.db import get_db
 from sqlalchemy import Session,select,insert
-from database.models import Users
+from models.models import Users
 from datetime import datetime,timezone,timedelta
 from app.schemas import UserLogin,RefreshToken
 from jwt.exceptions import InvalidTokenError
@@ -44,12 +44,13 @@ def scan_token(token:Annotated[str,Depends(oauth2_scheme)]):
     
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get("user_id")
     except InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Неверный токен,пройдиет авторизацию",
         )
-    return payload
+    return user_id
 
 @app.post("/token")
 def check_user(user:Annotated[OAuth2PasswordRequestForm,Depends()], db: Session = Depends(get_db)):
