@@ -11,11 +11,6 @@ class TaskScheme(BaseModel):
     due_date: date | None = None
     assignee_id: int | None = None
 
-class ProjectCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=50)
-    description: str | None = Field(default=None, max_length=225)
-
-
 #------------------GET  запрос TASK---------------------------------
 class UsersTasks(BaseModel):
     id: int

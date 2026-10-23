@@ -1,7 +1,7 @@
 from fastapi import Depends, HTTPException, FastAPI, status
 from database.db import get_db
 from datetime import datetime,timezone,timedelta
-from schemas.schemas_task import TaskScheme, ProjectCreate, TaskResponse
+from schemas.tasks import TaskScheme, ProjectCreate, TaskResponse, TaskUpdate
 from sqlalchemy import select, insert
 from sqlalchemy.orm import Session, joinedload
 from models.models import Tasks, Projects
@@ -58,7 +58,7 @@ def all_task(id: int,
              db: Session = Depends(get_db)):
     """Получение одного таска"""
     stmt = select(Tasks).where(Tasks.id == id)
-    result = db.execute(stmt).scalars_one_or_none()
+    result = db.execute(stmt).scalars().one_or_none()
     if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -69,10 +69,28 @@ def all_task(id: int,
 
 @app.patch("/tasks/{id}")
 def update_task(id: int, 
-                db: Session = Depends(get_db),
-                task: ):
-
+                task: TaskUpdate,
+                db: Session = Depends(get_db)
+                ):
     
+    stmt = select(Tasks).where(Tasks.id == id)
+    result = db.execute(stmt).scalars().one_or_none()
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail = "Пользователь не найден"
+        )
+    
+    new_task = task.model_dump(exclude_unset = True)
+ 
+    
+    for key, value in new_task.items():   
+        setattr(result,key,value)
+
+    db.commit()
+    db.refresh(result)       
+
+    return result
 
 
-
+@app.
