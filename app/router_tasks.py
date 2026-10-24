@@ -1,17 +1,17 @@
 from fastapi import Depends, HTTPException, FastAPI, status
 from database.db import get_db
 from datetime import datetime,timezone,timedelta
-from schemas.tasks import TaskScheme, ProjectCreate, TaskResponse, TaskUpdate
+from schemas import tasks, history, users
 from sqlalchemy import select, insert
 from sqlalchemy.orm import Session, joinedload
-from models.models import Tasks, Projects
+from models.models import Tasks, Projects, History
 from app.auth import scan_token
-
+from typing import List
 app = FastAPI()
 
 
 @app.post("/projects/{id}/tasks", status_code = status.HTTP_201_CREATED) 
-def create_task(task: TaskScheme, id: int,
+def create_task(task: tasks.TaskScheme, id: int,
                 db: Session = Depends(get_db),
                 user_id: int = Depends(scan_token)):
     
@@ -41,7 +41,7 @@ def create_task(task: TaskScheme, id: int,
     return "Сохранено"
 
     
-@app.get("/projects/{id}/tasks", response_model=list[TaskResponse])
+@app.get("/projects/{id}/tasks", response_model=list[tasks.TaskResponse])
 def task_get_response(id: int, 
                       db: Session = Depends(get_db),
                       creator_id: int = Depends(scan_token)):
@@ -53,7 +53,7 @@ def task_get_response(id: int,
     result = db.execute(stmt).saclars().all()
     return result
 
-@app.get("/tasks/{id}",response_model=TaskScheme)
+@app.get("/tasks/{id}",response_model=tasks.TaskScheme)
 def all_task(id: int, 
              db: Session = Depends(get_db)):
     """Получение одного таска"""
@@ -69,7 +69,7 @@ def all_task(id: int,
 
 @app.patch("/tasks/{id}")
 def update_task(id: int, 
-                task: TaskUpdate,
+                task: tasks.TaskUpdate,
                 db: Session = Depends(get_db)
                 ):
     
@@ -111,7 +111,7 @@ def task_delete(id: int,
     
     return "Удалено!"
 
-@app.get("/tasks/{id}/history", response_model = TaskScheme)
+@app.patch("/tasks/{id}/history", response_model = tasks.TaskScheme)
 def task_restore(id: int,
                  creator_id: int = Depends(scan_token), 
                  db: Session = Depends(get_db)):
@@ -122,10 +122,23 @@ def task_restore(id: int,
         result.is_deleted = False
         db.commit()
         db.refresh(result)
-        return "Восстановлено!"
+        return result
     
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail = "Не найдено"
     )
 
+@app.get("/tasks/{id}/history ",respone_model = List[history.HistorySchemeResponse])
+def get_task_history(id: int, db: Session = Depends(get_db)):
+    stmt = select(History).options(joinedload(History.user_id),
+                                   joinedload(History.task_id)).where(History.id == id)
+    
+    result = db.execute(stmt).scalars().all()
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail = "История пуста"
+        )
+
+    return result

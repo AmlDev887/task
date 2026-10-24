@@ -95,12 +95,12 @@ class Comments(Base):
     author:Mapped["Users"] = relationship(back_populates="comment")
     task:Mapped["Tasks"] = relationship(back_populates="comment")
 
-class TaskHistory(Base):
+class History(Base):
     __tablename__ = "task_history"
     id:Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     user_id:Mapped[int] = mapped_column(ForeignKey("users.id"), ondelete = "CASCADE")
     task_id:Mapped[int] = mapped_column(ForeignKey("tasks.id"), ondelete = "CASCADE")
-    field:Mapped[str] = mapped_column(String(60))
+    field:Mapped[str] = mapped_column(String(60)) 
     old_value:Mapped[str] = mapped_column(String(40))
     new_value:Mapped[str] = mapped_column(String(40))
 
