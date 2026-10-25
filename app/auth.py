@@ -3,10 +3,12 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import Annotated
 from fastapi import Depends, HTTPException, FastAPI, status
 from database.db import get_db
-from sqlalchemy import Session,select,insert
+from sqlalchemy import select
 from models.models import Users
 from datetime import datetime,timezone,timedelta
-from app.schemas import UserLogin,RefreshToken
+from app.schemas import UserLogin
+from schemas.users import AddUser
+from sqlalchemy.orm import Session
 from jwt.exceptions import InvalidTokenError
 import jwt
 
@@ -22,17 +24,17 @@ def full_token(user_id):
     access_token = jwt.encode({"user_id":str(user_id), "exp":expire, "type":"access"},SECRET_KEY,algorithm="HS256")
 
     expire_1 = datetime.now(timezone.utc) + timedelta(days=7)
-    refresh_token = jwt.encode({"user_id":str(user_id), "exp":expire_1, "type":"access"},SECRET_KEY_2,algorithm="HS256")
+    refresh_token = jwt.encode({"user_id":str(user_id), "exp":expire_1, "type":"refresh"},SECRET_KEY_2,algorithm="HS256")
 
     return {
         "access_token":access_token,
         "refresh_token":refresh_token,
-        "token_type":"bearear"
+        "token_type":"bearer"
     }
 def verify_password(plain_password, hashed_password):
     """Проверяем пароль совпдает ли он с паролем в хэше"""
     
-    return password_hash.hash(plain_password, hashed_password)
+    return password_hash.verify(plain_password, hashed_password)
 
 def heshing_password(password):
     """Хешируем пароль"""
@@ -56,7 +58,7 @@ def scan_token(token:Annotated[str,Depends(oauth2_scheme)]):
 def check_user(user:Annotated[OAuth2PasswordRequestForm,Depends()], db: Session = Depends(get_db)):
     """Проверка пользователя и создание токена"""
     
-    stmt = select(Users).where(user.username == Users.full_name)
+    stmt = select(Users).where(user.username == Users.email)
     result = (db.execute(stmt)).scalar_one_or_none()
     
     if result and verify_password(user.password, result.hashed_password):
@@ -64,13 +66,13 @@ def check_user(user:Annotated[OAuth2PasswordRequestForm,Depends()], db: Session 
     
     if result is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Пользователь не найден"
         )
     raise HTTPException( status_code=status.HTTP_401_UNAUTHORIZED, 
                         detail="Неверное имя пользователя или пароль")
 
-@app.post("/add_user")
+@app.post("/add_user",response_model = AddUser)
 def add(new_user: UserLogin, db: Session = Depends(get_db)):
     """Создание нового User"""
     
@@ -95,7 +97,10 @@ def refresh_token(token:Annotated[str,Depends(oauth2_scheme)]):
             algorithms=["HS256"]
         )
     except InvalidTokenError:    
-        return "Неверный токен"
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Неверный токен"
+        )
 
     return full_token(bayong["user_id"])
 

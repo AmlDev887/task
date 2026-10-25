@@ -8,7 +8,7 @@ port = 5432
 database = "task"
 
 
-engine = create_engine(f"postgres://{user}:{password}@{host}:{port}/{database}")
+engine = create_engine(f"postgres + psycopg2://{user}:{password}@{host}:{port}/{database}")
 
 SessionLocal = sessionmaker(autocommit = False, autoflush=False, bind = engine)
 
@@ -17,7 +17,7 @@ def get_db():
     try:
         yield db
     finally:
-        yield db.close()
+        db.close()
 
 
 
