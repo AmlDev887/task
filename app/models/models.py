@@ -26,16 +26,17 @@ class Users(Base):
     id:Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     email:Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
     full_name:Mapped[str] = mapped_column(String(60), nullable=False)
-    hashed_password:Mapped[str] = mapped_column(String(225), nullable=False)
-    role:Mapped[Enum] = mapped_column(Enum(OrderRoleUser,name = 'order_status_enum', create_type = False),nullable=False)
+    hashed_password:Mapped[str] = mapped_column(String(225), nullable=True)
+    role:Mapped[OrderRoleUser] = mapped_column(Enum(OrderRoleUser,name = 'user_role_enum'),default = OrderRoleUser.USER,nullable=False)
     is_active:Mapped[bool] = mapped_column(nullable=False, default = True)
-    is_verified:Mapped[bool] = mapped_column(nullable=False, default= False)
+    is_verified:Mapped[bool] = mapped_column(nullable=False, default= True)
 
     created_tasks:Mapped[List["Tasks"]] = relationship(back_populates="creator", foreign_keys="[Tasks.creator_id]")
     assigned_tasks:Mapped[List["Tasks"]] = relationship(back_populates="assignee", foreign_keys="[Tasks.assignee_id]")
     project:Mapped[List["Projects"]] = relationship(back_populates="user")
     project_member:Mapped[List["ProjectMembers"]] = relationship(back_populates="user")
     comment:Mapped[List["Comments"]] = relationship(back_populates="author")
+    history: Mapped[List["History"]] = relationship(back_populates="user")
 
 class ProjectMembers(Base):
     __tablename__ = "project_members"
@@ -55,8 +56,8 @@ class Tasks(Base):
     id:Mapped[int] = mapped_column(BigInteger,primary_key=True, autoincrement=True)
     title:Mapped[str] = mapped_column(String(60), nullable=False)
     description:Mapped[Optional[str]] = mapped_column(String(225),nullable=True)
-    status:Mapped[Enum] = mapped_column(Enum(TaskStatus, name = "task_status_enum",create_type = False), nullable=False)
-    priority:Mapped[Enum] = mapped_column(Enum(TaskPriority, name = "task_priority_enum",create_type = False), nullable=False)
+    status:Mapped[TaskStatus] = mapped_column(Enum(TaskStatus, name = "task_status_enum"), nullable=False)
+    priority:Mapped[TaskPriority] = mapped_column(Enum(TaskPriority, name = "task_priority_enum"), nullable=False)
     due_date:Mapped[date] = mapped_column(nullable=False,index=True)
     project_id:Mapped[int] = mapped_column(ForeignKey("projects.id",ondelete = "CASCADE"),index=True, nullable=False)
     creator_id:Mapped[int] = mapped_column(ForeignKey("users.id",ondelete = "CASCADE"))
@@ -69,6 +70,7 @@ class Tasks(Base):
     project:Mapped["Projects"] = relationship(back_populates="task")
     tasktags:Mapped[List["TaskTags"]] = relationship(back_populates="task")
     comment:Mapped[List["Comments"]] = relationship(back_populates="task")
+    history:Mapped[List["History"]] = relationship(back_populates="task")
 
 class Tags(Base):
     __tablename__="tags"
@@ -109,13 +111,16 @@ class History(Base):
     old_value:Mapped[str] = mapped_column(String(40))
     new_value:Mapped[str] = mapped_column(String(40))
 
+    user: Mapped["Users"] = relationship(back_populates="history")
+    task: Mapped["Tasks"]= relationship(back_populates="history")
+
 class EmailTokens(Base):
     __tablename__ = "email_tokens"
 
     id:Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     user_id:Mapped[int] = mapped_column(ForeignKey("users.id", ondelete = "CASCADE"))
     token:Mapped[str] = mapped_column(String(225), nullable=False)
-    purpose:Mapped[Enum] = mapped_column(Enum(EmailTokensEnum, name = "email_tokens_enum",create_type = False), nullable=False)
+    purpose:Mapped[EmailTokensEnum] = mapped_column(Enum(EmailTokensEnum, name = "email_tokens_enum"), nullable=False)
     expires_at:Mapped[datetime] = mapped_column(DateTime,nullable=False)
     used_at:Mapped[Optional[datetime]] = mapped_column(DateTime,nullable=True)
 

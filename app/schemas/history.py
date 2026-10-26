@@ -8,4 +8,4 @@ class HistorySchemeResponse(BaseModel):
     old_value: str
     new_value: str
 
-    modelconfig = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)

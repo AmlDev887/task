@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, FastAPI, status
+from fastapi import Depends, HTTPException, APIRouter, status
 from app.database.db import get_db
 from app.schemas import history, tasks
 from sqlalchemy import select
@@ -6,10 +6,15 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.models import Tasks, Projects, History
 from app.routers.auth import scan_token
 from typing import List
-app = FastAPI()
 
 
-@app.post("/projects/{id}/tasks", status_code = status.HTTP_201_CREATED) 
+router = APIRouter(
+    prefix="/tasks",
+    tags=["tasks"]
+)
+
+
+@router.post("/projects/{id}/tasks", status_code = status.HTTP_201_CREATED) 
 def create_task(task: tasks.TaskScheme, id: int,
                 db: Session = Depends(get_db),
                 user_id: int = Depends(scan_token)):
@@ -31,7 +36,7 @@ def create_task(task: tasks.TaskScheme, id: int,
         priority=task.priority,
         due_date=task.due_date,
         project_id=id,
-        creator_id=1, 
+        creator_id=user_id, 
         assignee_id=task.assignee_id
     )
     db.add(new_task)
@@ -40,7 +45,7 @@ def create_task(task: tasks.TaskScheme, id: int,
     return "Сохранено"
 
     
-@app.get("/projects/{id}/tasks", response_model=list[tasks.TaskResponse])
+@router.get("/projects/{id}/tasks", response_model=list[tasks.TaskResponse])
 def task_get_response(id: int, 
                       db: Session = Depends(get_db),
                       creator_id: int = Depends(scan_token)):
@@ -49,24 +54,24 @@ def task_get_response(id: int,
     stmt = select(Tasks).options(joinedload(Tasks.user),
                                     joinedload(Tasks.task)).where(Tasks.id == id)
     
-    result = db.execute(stmt).saclars().all()
+    result = db.execute(stmt).scalars().all()
     return result
 
-@app.get("/tasks/{id}",response_model=tasks.TaskScheme)
+@router.get("/tasks/{id}",response_model=tasks.TaskScheme)
 def all_task(id: int, 
              db: Session = Depends(get_db)):
     """Получение одного таска"""
-    stmt = select(Tasks).where(Tasks.id == id)
+    stmt = select(Tasks).where(Tasks.project_id == id)
     result = db.execute(stmt).scalars().one_or_none()
     if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            details = "Пользователь не найден"
+            detail = "Пользователь не найден"
         )
     return result
 
 
-@app.patch("/tasks/{id}")
+@router.patch("/tasks/{id}")
 def update_task(id: int, 
                 task: tasks.TaskUpdate,
                 db: Session = Depends(get_db)
@@ -92,7 +97,7 @@ def update_task(id: int,
     return result
 
 
-@app.delete("/tasks/{id}")
+@router.delete("/tasks/{id}")
 def task_delete(id: int, 
                 db: Session = Depends(get_db),
                 creator_id: int = Depends(scan_token)):
@@ -110,7 +115,7 @@ def task_delete(id: int,
     
     return "Удалено!"
 
-@app.patch("/tasks/{id}/history", response_model = tasks.TaskScheme)
+@router.patch("/tasks/{id}/history", response_model = tasks.TaskScheme)
 def task_restore(id: int,
                  creator_id: int = Depends(scan_token), 
                  db: Session = Depends(get_db)):
@@ -128,7 +133,7 @@ def task_restore(id: int,
         detail = "Не найдено"
     )
 
-@app.get("/tasks/{id}/history ",respone_model = List[history.HistorySchemeResponse])
+@router.get("/tasks/{id}/history ",response_model = List[history.HistorySchemeResponse])
 def get_task_history(id: int, db: Session = Depends(get_db)):
     stmt = select(History).options(joinedload(History.user_id),
                                    joinedload(History.task_id)).where(History.id == id)

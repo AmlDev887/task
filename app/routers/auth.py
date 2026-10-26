@@ -1,7 +1,7 @@
 from pwdlib import PasswordHash
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import Annotated
-from fastapi import Depends, HTTPException, FastAPI, status
+from fastapi import Depends, HTTPException, APIRouter, status
 from app.database.db import get_db
 from sqlalchemy import select
 from app.models.models import Users
@@ -12,9 +12,12 @@ from jwt.exceptions import InvalidTokenError
 from app.config import settings
 import jwt
 
-app = FastAPI()
+router = APIRouter(
+    prefix="/auth",
+    tags=["auth"]
+)
 password_hash = PasswordHash.recommended()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl = "token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl = "/auth/token")
 
 def full_token(user_id):
     expire = datetime.now(timezone.utc) + timedelta(minutes=15)
@@ -44,6 +47,22 @@ def scan_token(token:Annotated[str,Depends(oauth2_scheme)]):
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         user_id = payload.get("user_id")
+        if payload.get("type") != "access":
+             raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Требуется access-токен"
+            )
+    
+        user_id = payload.get("user_id")
+
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="В токене отсутствует user_id"
+            )
+
+        return int(user_id)
+       
     except InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -51,7 +70,7 @@ def scan_token(token:Annotated[str,Depends(oauth2_scheme)]):
         )
     return user_id
 
-@app.post("/token")
+@router.post("/token")
 def check_user(user:Annotated[OAuth2PasswordRequestForm,Depends()], db: Session = Depends(get_db)):
     """Проверка пользователя и создание токена"""
     
@@ -69,7 +88,7 @@ def check_user(user:Annotated[OAuth2PasswordRequestForm,Depends()], db: Session 
     raise HTTPException( status_code=status.HTTP_401_UNAUTHORIZED, 
                         detail="Неверное имя пользователя или пароль")
 
-@app.post("/add_user",response_model = AddUser)
+@router.post("/add_user",response_model = AddUser)
 def add(new_user: UserLogin, db: Session = Depends(get_db)):
     """Создание нового User"""
     
@@ -84,7 +103,7 @@ def add(new_user: UserLogin, db: Session = Depends(get_db)):
 
     return answer
 
-@app.post("/refresh_token")
+@router.post("/refresh_token")
 def refresh_token(token:Annotated[str,Depends(oauth2_scheme)]):
     """Создание нового токена провркой refresh-а"""
     try:
@@ -93,6 +112,12 @@ def refresh_token(token:Annotated[str,Depends(oauth2_scheme)]):
             settings.SECRET_KEY_2,
             algorithms=["HS256"]
         )
+        if bayong.get("type") != "refresh":
+             raise HTTPException(
+                            status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Требуется access-токен"
+                        )
+                
     except InvalidTokenError:    
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
