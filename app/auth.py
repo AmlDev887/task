@@ -10,10 +10,8 @@ from app.schemas import UserLogin
 from schemas.users import AddUser
 from sqlalchemy.orm import Session
 from jwt.exceptions import InvalidTokenError
+from config import settings
 import jwt
-
-SECRET_KEY = 'akaza_xanpasu'
-SECRET_KEY_2 = 'akaza_xanpasu_2'
 
 app = FastAPI()
 password_hash = PasswordHash.recommended()
@@ -21,10 +19,10 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl = "token")
 
 def full_token(user_id):
     expire = datetime.now(timezone.utc) + timedelta(minutes=15)
-    access_token = jwt.encode({"user_id":str(user_id), "exp":expire, "type":"access"},SECRET_KEY,algorithm="HS256")
+    access_token = jwt.encode({"user_id":str(user_id), "exp":expire, "type":"access"},settings.SECRET_KEY,algorithm="HS256")
 
     expire_1 = datetime.now(timezone.utc) + timedelta(days=7)
-    refresh_token = jwt.encode({"user_id":str(user_id), "exp":expire_1, "type":"refresh"},SECRET_KEY_2,algorithm="HS256")
+    refresh_token = jwt.encode({"user_id":str(user_id), "exp":expire_1, "type":"refresh"},settings.SECRET_KEY_2,algorithm="HS256")
 
     return {
         "access_token":access_token,
@@ -45,7 +43,7 @@ def scan_token(token:Annotated[str,Depends(oauth2_scheme)]):
     """Проверка токена"""
     
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         user_id = payload.get("user_id")
     except InvalidTokenError:
         raise HTTPException(
@@ -93,7 +91,7 @@ def refresh_token(token:Annotated[str,Depends(oauth2_scheme)]):
     try:
         bayong = jwt.decode(
             token,
-            SECRET_KEY_2,
+            settings.SECRET_KEY_2,
             algorithms=["HS256"]
         )
     except InvalidTokenError:    

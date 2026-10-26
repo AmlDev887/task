@@ -1,14 +1,8 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from config import settings
 
-user = "postgres"
-password = "amalbek2004"
-host = "127.0.0.1"
-port = 5432
-database = "task"
-
-
-engine = create_engine(f"postgres + psycopg2://{user}:{password}@{host}:{port}/{database}")
+engine = create_engine(f"postgres + psycopg2://{settings.USER}:{settings.PASSWORD}@{settings.HOST}:{settings.PORT}/{settings.DATABASE}")
 
 SessionLocal = sessionmaker(autocommit = False, autoflush=False, bind = engine)
 
