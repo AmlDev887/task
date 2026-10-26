@@ -1,9 +1,9 @@
 from sqlalchemy.orm import DeclarativeBase,Mapped,mapped_column,relationship
-from sqlalchemy import String,BigInteger,MetaData,Enum,ForeignKey,DateTime, UniqueConstraint
-from database.roles import OrderRoleUser,TaskStatus,TaskPriority,EmailTokensEnum
+from sqlalchemy import String,BigInteger,Enum,ForeignKey,DateTime, UniqueConstraint
+from app.schemas.roles import OrderRoleUser,TaskStatus,TaskPriority,EmailTokensEnum
 from typing import List,Optional
 from datetime import datetime,date
-from database.db import engine
+from app.database.db import engine
 
 class Base(DeclarativeBase):
     pass

@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field, EmailStr, ConfigDict
-from database.roles import TaskStatus,TaskPriority, OrderRoleUser
-from datetime import datetime,date
+from pydantic import BaseModel, Field, ConfigDict
+from app.schemas.roles import TaskStatus,TaskPriority
+from datetime import date
 from typing import Optional
 
 class TaskScheme(BaseModel):

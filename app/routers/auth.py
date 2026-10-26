@@ -2,15 +2,14 @@ from pwdlib import PasswordHash
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import Annotated
 from fastapi import Depends, HTTPException, FastAPI, status
-from database.db import get_db
+from app.database.db import get_db
 from sqlalchemy import select
-from models.models import Users
+from app.models.models import Users
 from datetime import datetime,timezone,timedelta
-from app.schemas import UserLogin
-from schemas.users import AddUser
+from app.schemas.users import AddUser, UserLogin
 from sqlalchemy.orm import Session
 from jwt.exceptions import InvalidTokenError
-from config import settings
+from app.config import settings
 import jwt
 
 app = FastAPI()

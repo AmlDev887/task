@@ -1,11 +1,10 @@
 from fastapi import Depends, HTTPException, FastAPI, status
-from database.db import get_db
-from datetime import datetime,timezone,timedelta
-from schemas import tasks, history, users
-from sqlalchemy import select, insert
+from app.database.db import get_db
+from app.schemas import history, tasks
+from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
-from models.models import Tasks, Projects, History
-from app.auth import scan_token
+from app.models.models import Tasks, Projects, History
+from app.routers.auth import scan_token
 from typing import List
 app = FastAPI()
 
