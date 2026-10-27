@@ -21,3 +21,8 @@ class EmailTokensEnum(Enum):
     VERIFY = "verify"
     RESET = "reset"
 
+class ProjectRole(Enum):
+    OWNER = "owner"
+    EDITOR = "editor"
+    VIEWER = "viewer"
+    
