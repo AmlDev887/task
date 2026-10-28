@@ -174,4 +174,3 @@ async def reset_password(email:auth.EmailReset,db: AsyncSession = Depends(get_db
     await db.refresh(forgot)
     await redis.redis_async.delete(name = email.email)
     return {"message":"Код успешно изменен"}
-
