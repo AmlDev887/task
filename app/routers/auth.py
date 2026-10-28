@@ -3,6 +3,7 @@ from datetime import datetime,timezone,timedelta
 from app.database.db import get_db
 from app.models.models import Users
 from app.schemas.users import AddUser, UserLogin
+from app.schemas import auth
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import security
 from app.config import settings
@@ -14,7 +15,7 @@ router = APIRouter(
     tags=["user"]
 )
 
-async def full_token(user_id):
+def full_token(user_id):
     expire = datetime.now(timezone.utc) + timedelta(minutes=15)
     access_token = jwt.encode({"user_id":str(user_id), "exp":expire, "type":"access"},settings.SECRET_KEY,algorithm="HS256")
 
@@ -27,7 +28,7 @@ async def full_token(user_id):
         "token_type":"bearer"
     }
 
-@router.post("/add_user",response_model = AddUser)
+@router.post("/register",response_model = AddUser)
 async def add(new_user: UserLogin, db: AsyncSession = Depends(get_db)):
     """Создание нового User"""
     
@@ -40,9 +41,19 @@ async def add(new_user: UserLogin, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(answer)
 
-    return answer
+    result = email_code()
 
+    return result
 
+@router.post("/verify")
+async def email_verify(email:auth.EmailVerify, 
+                       db: AsyncSession = Depends(get_db)):
+    
+
+@router.get("/user_info",response_model = )
+async def user_info(user:,
+                    user_id:
+                    db:AsyncSession = Depends(get_db)):
 
     
 
