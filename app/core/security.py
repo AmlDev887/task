@@ -58,58 +58,5 @@ async def scan_token(token:Annotated[str,Depends(oauth2_scheme)]):
         )
     return user_id
 
-async def full_token(user_id):
-    expire = datetime.now(timezone.utc) + timedelta(minutes=15)
-    access_token = jwt.encode({"user_id":str(user_id), "exp":expire, "type":"access"},settings.SECRET_KEY,algorithm="HS256")
 
-    expire_1 = datetime.now(timezone.utc) + timedelta(days=7)
-    refresh_token = jwt.encode({"user_id":str(user_id), "exp":expire_1, "type":"refresh"},settings.SECRET_KEY_2,algorithm="HS256")
-
-    return {
-        "access_token":access_token,
-        "refresh_token":refresh_token,
-        "token_type":"bearer"
-    }
-
-@router.post("/token")
-async def check_user(user:Annotated[OAuth2PasswordRequestForm,Depends()], db: AsyncSession = Depends(get_db)):
-    """Проверка пользователя и создание токена"""
-    
-    stmt = select(Users).where(user.username == Users.email)
-    result = await (db.execute(stmt)).scalar_one_or_none()
-    
-    if result and verify_password(user.password, result.hashed_password):
-        return full_token(result.id)
-    
-    if result is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Пользователь не найден"
-        )
-    raise HTTPException( status_code=status.HTTP_401_UNAUTHORIZED, 
-                        detail="Неверное имя пользователя или пароль")
-
-
-@router.post("/refresh_token")
-async def refresh_token(token:Annotated[str,Depends(oauth2_scheme)]):
-    """Создание нового токена провркой refresh-а"""
-    try:
-        bayong = jwt.decode(
-            token,
-            settings.SECRET_KEY_2,
-            algorithms=["HS256"]
-        )
-        if bayong.get("type") != "refresh":
-             raise HTTPException(
-                            status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="Требуется access-токен"
-                        )
-                
-    except InvalidTokenError:    
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Неверный токен"
-        )
-
-    return full_token(bayong["user_id"])
 
