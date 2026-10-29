@@ -16,3 +16,7 @@ class CreateOwner(BaseModel):
 
 class ProjectOwnerDelete(BaseModel):
     member_id: int
+
+class ProjectTask(BaseModel):
+    project_id: int
+    status:dict[str,int]

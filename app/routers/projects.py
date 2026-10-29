@@ -1,9 +1,9 @@
 from fastapi import Depends, APIRouter, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from app.core import security
-from sqlalchemy import select,insert
+from sqlalchemy import select,func
 from sqlalchemy.orm import joinedload
-from app.models.models import Projects, Users, ProjectMembers
+from app.models.models import Projects, Users, ProjectMembers, Tasks
 from app.database.db import get_db
 from app.schemas import projects
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -197,3 +197,19 @@ async def member_user(id:int,
             
     await db.delete(answer)
     await db.commit()
+
+@router.get("/{id}/stats", response_model = projects.ProjectTask)
+async def status(id:int,
+                 db: AsyncSession = Depends(get_db)):
+    """Вывод статуса"""
+    
+    stmt = select(Tasks.status,func.count()).where(Tasks.project_id == id).group_by(Tasks.status)
+    result = await db.execute(stmt)
+    answer = result.all()
+
+    return {
+         "status":{row[0]: row[1] for row in answer},
+         "project_id":id
+    }
+
+
