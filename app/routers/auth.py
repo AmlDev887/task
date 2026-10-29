@@ -7,9 +7,9 @@ from app.schemas.users import AddUser, UserLogin
 from app.schemas import auth
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import security
-from app.config import settings
+from app.core.config import settings
 from sqlalchemy import select
-from celery_app import get_email_code
+from app.workers.celery_app import get_email_code
 from jwt.exceptions import InvalidTokenError
 from app.core import redis
 from typing import Annotated
@@ -124,9 +124,8 @@ async def refresh_token(token:Annotated[str,Depends(oauth2_scheme)]):
 
 
 @router.post("/logout/{id}")
-async def  
-
-
+async def  user_logout():
+    pass
 
 @router.post("/forgot-password")
 async def forgot_password(email:auth.EmailForgot, db: AsyncSession = Depends(get_db)):

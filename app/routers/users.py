@@ -35,6 +35,7 @@ async def user_info(user_id: int = Depends(security.scan_token),db: AsyncSession
 @router.patch("/me")
 async def user_update(update: users.UserUpdate,user_id: int = Depends(security.scan_token),db: AsyncSession = Depends(get_db)):
     """Ввеод изменений на профиль пользователя"""
+    
     stmt = select(models.Users).where(models.Users.id == user_id)
     result = await db.execute(stmt)
     answer = result.scalars().one_or_none()
@@ -56,8 +57,12 @@ async def user_update(update: users.UserUpdate,user_id: int = Depends(security.s
     return {"message": "Извенения применены"}
 
 @router.get("/",response_model = List[users.UserResponse])
-async def user(user_id: int = Depends(security.scan_token),db: AsyncSession = Depends(get_db)):
+async def user(user_id: int = Depends(security.scan_token),
+               page: int = 1,       
+               size: int = 20,
+               db: AsyncSession = Depends(get_db)):
     """Получение всех пользователей"""
+    
     stmt = select(models.Users).where(models.Users.id == user_id)
     result = await db.execute(stmt)
     answer = result.scalars().one_or_none()
@@ -72,8 +77,12 @@ async def user(user_id: int = Depends(security.scan_token),db: AsyncSession = De
                     status_code = status.HTTP_403_FORBIDDEN,
                     detail = "Вам запрещен доступ"
                 )
-    stmt_2 = select(models.Users)
+    
+    offset = (page - 1) * size
+    
+    stmt_2 = select(models.Users).order_by(models.Users.id.asc()).offset(offset).limit(size)
     result_2 = await db.execute(stmt_2)
     answer_2 = result_2.scalars().all()
 
     return answer_2
+
