@@ -212,4 +212,27 @@ async def status(id:int,
          "project_id":id
     }
 
+@router.post("/{id}/tasks")
+async def create_task(id:int,
+                      update:projects.ProjectTaskUpdate,
+                      user_id: int = Depends(security.scan_token),
+                    db: AsyncSession = Depends(get_db)):
+    """Создание нового таска"""
+    stmt = select(ProjectMembers).options(joinedload(ProjectMembers.user),
+                                        joinedload(ProjectMembers.project)).where(ProjectMembers.user_id == user_id,
+                                                                                    ProjectMembers.project_id == id)
+    result = await db.execute(stmt)
+    answer = result.scalars().one_or_none()
+    if answer is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Проект не найден"
+    )
+    if answer.role == roles.ProjectRole.VIEWER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail = "Доступ не разрешен вы не (Editor,Owner)"
+    )
+
+    
 

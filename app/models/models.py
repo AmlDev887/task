@@ -67,7 +67,7 @@ class Tasks(Base, TimestampMixin):
     project_id:Mapped[int] = mapped_column(ForeignKey("projects.id",ondelete = "CASCADE"),index=True, nullable=False)
     creator_id:Mapped[int] = mapped_column(ForeignKey("users.id",ondelete = "CASCADE"))
     assignee_id:Mapped[Optional[int]] = mapped_column(ForeignKey("users.id",ondelete = "SET NULL"),index=True,nullable=True)
-    completed_at:Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True),nullable=True) 
+    completed_at:Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True),server_default=func.now(), nullable=True) 
     deleted_at:Mapped[Optional[datetime | None]] = mapped_column(DateTime(timezone=True), nullable=True) 
     version: Mapped[int] = mapped_column(nullable=False, default= False)
 
