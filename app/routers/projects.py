@@ -140,27 +140,60 @@ async def member_user(id:int,
          joinedload(ProjectMembers.project),
          joinedload(ProjectMembers.user)
     ).where(ProjectMembers.user_id == user_id, ProjectMembers.project_id == id)
+    
     runner = await db.execute(user)
     budy = runner.scalars().one_or_none()
-    
+    if budy is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Проект не найден"
+        )
     if budy.role != roles.ProjectRole.OWNER:
             raise HTTPException(
                  status_code=status.HTTP_403_FORBIDDEN,
                  detail = "Доступ не разрешен вы не (Admin)"
             )
-    stmt = select(Projects).where(Projects.id == id)
+    
+    new_member = ProjectMembers(
+    project_id=id,
+    user_id=int(member.user_id),
+    role=member.owner_id
+)
+
+    db.add(new_member)
+    await db.commit()
+    await db.refresh(new_member)
+
+    return {"message": "Пользователь добавлен в проект"}
+
+@router.delete("/{id}/members")
+async def member_user(id:int,
+                      owner:projects.ProjectOwnerDelete,
+                      user_id:int = Depends(security.scan_token),
+                      db: AsyncSession = Depends(get_db)):
+    user = select(ProjectMembers).options(
+            joinedload(ProjectMembers.project),
+            joinedload(ProjectMembers.user)
+        ).where(ProjectMembers.user_id == user_id, ProjectMembers.project_id == id)
+        
+    runner = await db.execute(user)
+    budy = runner.scalars().one_or_none()
+    if budy is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Проект не найден"
+        )
+    if budy.role != roles.ProjectRole.OWNER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail = "Доступ не разрешен вы не (Admin)"
+                )
+    stmt = select(ProjectMembers).options(
+                joinedload(ProjectMembers.project),
+                joinedload(ProjectMembers.user)
+            ).where(ProjectMembers.project_id == id,ProjectMembers.user_id == owner.member_id)
     result = await db.execute(stmt)
     answer = result.scalars().one_or_none()
-
-    if answer is None:
-         raise HTTPException(
-              status_code=status.HTTP_404_NOT_FOUND,
-              detail="Проект не найден"
-         )
-    new_owner = member.model_dump()
-    for key,value in new_owner.items():
-         setattr(answer,key,value)
-
+            
+    await db.delete(answer)
     await db.commit()
-    await db.refresh(answer)
-    return {"message":"Добавлено"}
