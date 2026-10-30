@@ -48,3 +48,13 @@ class ProjectTaskUpdate(BaseModel):
         if value is not None:
             return value or None
         return value
+
+class ProjectTaskResponse(BaseModel):
+    title: str
+    description: str | None
+    status: str
+    priority: str
+    due_date: date | None
+    project_id: int
+    assignee_id: int | None
+    

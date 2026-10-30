@@ -1,7 +1,7 @@
 from fastapi import Depends, APIRouter, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from app.core import security
-from sqlalchemy import select,func
+from sqlalchemy import select,func, insert
 from sqlalchemy.orm import joinedload
 from app.models.models import Projects, Users, ProjectMembers, Tasks
 from app.database.db import get_db
@@ -212,15 +212,14 @@ async def status(id:int,
          "project_id":id
     }
 
-@router.post("/{id}/tasks")
+@router.post("/{id}/tasks",status_code=status.HTTP_201_CREATED)
 async def create_task(id:int,
                       update:projects.ProjectTaskUpdate,
                       user_id: int = Depends(security.scan_token),
-                    db: AsyncSession = Depends(get_db)):
+                      db: AsyncSession = Depends(get_db)):
     """Создание нового таска"""
-    stmt = select(ProjectMembers).options(joinedload(ProjectMembers.user),
-                                        joinedload(ProjectMembers.project)).where(ProjectMembers.user_id == user_id,
-                                                                                    ProjectMembers.project_id == id)
+    stmt = select(ProjectMembers).where(ProjectMembers.user_id == user_id,
+                                        ProjectMembers.project_id == id)
     result = await db.execute(stmt)
     answer = result.scalars().one_or_none()
     if answer is None:
@@ -228,11 +227,45 @@ async def create_task(id:int,
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Проект не найден"
     )
-    if answer.role == roles.ProjectRole.VIEWER:
+    if answer.role != (
+                        roles.ProjectRole.OWNER,
+                        roles.ProjectRole.EDITOR
+                    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail = "Доступ не разрешен вы не (Editor,Owner)"
     )
-
+    task = Tasks(
+        title= update.title,
+        description=update.description,
+        status= update.status,
+        priority=update.priority,
+        due_date=update.due_date,
+        project_id=id,
+        creator_id=user_id,
+        assignee_id=update.assignee_id
+    )
+    db.add(task)
+    await db.commit()
+    await db.refresh(task)
     
+    return task
 
+@router.get("/{id}/tasks",response_model=List[projects.ProjectTaskResponse])
+async def task_response(id:int,
+                        db: AsyncSession = Depends(get_db)):
+    """Вывод всех тасков конкреотного проекта"""
+    project = select(Projects).where(Projects.id == id)
+    vudy = await db.execute(project)
+    runner = vudy.scalars().one_or_none()
+    if runner is None:
+         raise HTTPException(
+                     status_code=status.HTTP_404_NOT_FOUND,
+                     detail="Проект не найден"
+             )
+    stmt = select(Tasks).where(Tasks.project_id == id)
+    result = await db.execute(stmt)
+    answer = result.scalars().all()
+    if not answer:
+        return []
+    return answer
