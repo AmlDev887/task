@@ -56,7 +56,7 @@ async def scan_token(token:Annotated[str,Depends(oauth2_scheme)]):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Неверный токен,пройдиет авторизацию",
         )
-    return user_id
+        
 
 
 

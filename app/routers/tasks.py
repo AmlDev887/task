@@ -1,12 +1,11 @@
 from fastapi import Depends, APIRouter, HTTPException, status
 from app.database.db import get_db
-from app.schemas import tasks
-from app.models.models import Projects, Users, ProjectMembers, Tasks
+from app.schemas import tasks, history
+from app.models.models import Projects, Users, ProjectMembers, Tasks, History
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import security
-from app.core.config import settings
 from sqlalchemy import select
-from typing import Annotated
+from typing import List
 from schemas import roles
 
 router = APIRouter(
@@ -22,7 +21,6 @@ async def all_task(id: int,
     stmt = select(Tasks).where(Tasks.id == id)
     result = await db.execute(stmt)
     answer = result.scalars().one_or_none()
-    
     if answer is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -37,22 +35,33 @@ async def update_task(id: int,
                 user_id: int = Depends(security.scan_token),
                 db: AsyncSession = Depends(get_db)
                 ):
-
-    body = select(ProjectMembers).where(ProjectMembers.project_id == id, 
-                                        ProjectMembers.user_id == user_id)
+ 
+    body = select(Tasks).where(Tasks.id == id )
     runner = await db.execute(body)
     answer = runner.scalars().one_or_none()
     if answer is None:
         raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail = "Пользователь не найден"
+                    detail = "Таск не найден"
                 )
-    if answer.role == roles.ProjectRole.VIEWER:
+
+    pro_id = answer.project_id
+    georg = select(ProjectMembers).where(ProjectMembers.project_id == pro_id,
+                                         ProjectMembers.user_id == user_id)
+
+    wait = await db.execute(georg)
+    rfag = wait.scalars().one_or_none()
+    if rfag is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail = "Нужного проекта нет"
+                )
+    if rfag.role not in (roles.ProjectRole.EDITOR,
+                     roles.ProjectRole.OWNER):
         raise HTTPException(
             status_code = status.HTTP_403_FORBIDDEN,
-            deatil = "Вам доступ не разрешен"
+            detil = "Вам доступ не разрешен"
         )
-    
     stmt = select(Tasks).where(Tasks.id == id)
     result = await db.execute(stmt)
     answer = result.scalars().one_or_none()
@@ -67,20 +76,17 @@ async def update_task(id: int,
  
     
     for key, value in new_task.items():   
-        setattr(result,key,value)
+        setattr(answer,key,value)
 
     db.commit()
-    db.refresh(result)       
-
-    return result
-
+    db.refresh(answer)       
 
 @router.delete("/{id}")
 async def task_delete(id: int, 
                 db: AsyncSession = Depends(get_db),
                 creator_id: int = Depends(security.scan_token)):
     """Мягкое удаление таска"""
-
+ 
     body = select(Tasks).where(Tasks.id == id )
     runner = await db.execute(body)
     answer = runner.scalars().one_or_none()
@@ -92,8 +98,7 @@ async def task_delete(id: int,
 
     pro_id = answer.project_id
     georg = select(ProjectMembers).where(ProjectMembers.project_id == pro_id,
-                                        ProjectMembers.user_id == creator_id)
-
+                                         ProjectMembers.user_id == creator_id)
     wait = await db.execute(georg)
     rfag = wait.scalars().one_or_none()
     if rfag is None:
@@ -102,10 +107,10 @@ async def task_delete(id: int,
                     detail = "Нужного проекта нет"
                 )
     if rfag.role not in (roles.ProjectRole.EDITOR,
-                    roles.ProjectRole.OWNER):
+                     roles.ProjectRole.OWNER):
         raise HTTPException(
             status_code = status.HTTP_403_FORBIDDEN,
-            detail = "Вам доступ не разрешен"
+            detil = "Вам доступ не разрешен"
         )
     stmt = select(Tasks).where(Tasks.id == id,Tasks.is_deleted == False)
     result = await db.execute(stmt)
@@ -159,10 +164,10 @@ async def task_restore(id: int,
     answer = result.scalars().one_or_none()
 
     if answer is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail = "Таск не найден"
-                )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail = "Таск не найден"
+        )
 
     answer.is_deleted = False
     await db.commit()
@@ -170,4 +175,33 @@ async def task_restore(id: int,
     return answer
     
 @router.delete("/{id}/hard")
-async def 
+async def task_delete(id:int,
+                      db: AsyncSession = Depends(get_db)):
+    """Удаление таска без возможности восстановить"""
+    stmt = select(Tasks).where(Tasks.id == id)
+    result = await db.execute(stmt)
+    answer = result.scalars().one_or_none()
+    
+    if answer is None:   
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail = "Таск не найден"
+        )
+
+    await db.delete(answer)
+    await db.commit()
+
+    return {"message":"Удалено"}
+
+@router.get("/{id}/history",response_model =List[history.HistorySchemeResponse])
+async def tasks_history(id:int, db:AsyncSession = Depends(get_db)):
+    """История тасков"""
+    
+    stmt = select(History).where(History.task_id == id)
+    result = await db.execute(stmt)
+    answer = result.scalars().all()
+    if not answer:
+         return []
+
+    return answer
+
