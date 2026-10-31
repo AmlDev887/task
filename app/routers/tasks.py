@@ -44,11 +44,10 @@ async def update_task(id: int,
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail = "Таск не найден"
                 )
-
     pro_id = answer.project_id
     georg = select(ProjectMembers).where(ProjectMembers.project_id == pro_id,
                                          ProjectMembers.user_id == user_id)
-
+    
     wait = await db.execute(georg)
     rfag = wait.scalars().one_or_none()
     if rfag is None:
@@ -60,8 +59,23 @@ async def update_task(id: int,
                      roles.ProjectRole.OWNER):
         raise HTTPException(
             status_code = status.HTTP_403_FORBIDDEN,
-            detil = "Вам доступ не разрешен"
+            detail = "Вам доступ не разрешен"
         )
+    
+    hunter = task.model_dump(exclude_unset=True)
+    for key,new_value in hunter.items():
+        old_value = getattr(answer,key,None)
+        if old_value != new_value:
+            history_update = History(
+                use_id = user_id,
+                task_id = id,
+                field = key,
+                old_value = old_value if old_value is not None else None,
+                new_value = new_value  if new_value is not None else None
+            )
+            db.add(history_update)
+            setattr(answer,key,new_value)
+
     stmt = select(Tasks).where(Tasks.id == id)
     result = await db.execute(stmt)
     answer = result.scalars().one_or_none()
@@ -78,8 +92,8 @@ async def update_task(id: int,
     for key, value in new_task.items():   
         setattr(answer,key,value)
 
-    db.commit()
-    db.refresh(answer)       
+    await db.commit()
+    await db.refresh(answer)       
 
 @router.delete("/{id}")
 async def task_delete(id: int, 
@@ -205,3 +219,11 @@ async def tasks_history(id:int, db:AsyncSession = Depends(get_db)):
 
     return answer
 
+@router.post("/{id}/comments")
+async def creat_coments(id: int,
+                        comment: tasks.TaskCommentCreate,
+                        db: AsyncSession = Depends(get_db):
+
+    stmt = select(Tasks).where(Tasks.id == )
+
+     

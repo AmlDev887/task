@@ -128,7 +128,7 @@ class Comments(Base, TimestampMixin):
 class History(Base, TimestampMixin):
     __tablename__ = "task_history"
     id:Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    user_id:Mapped[int] = mapped_column(ForeignKey("users.id",ondelete = "CASCADE"))
+    use_id:Mapped[int] = mapped_column(ForeignKey("users.id",ondelete = "CASCADE"))
     task_id:Mapped[int] = mapped_column(ForeignKey("tasks.id",ondelete = "CASCADE"))
     field:Mapped[str] = mapped_column(String(60)) 
     old_value:Mapped[Optional[str]] = mapped_column(String(100))

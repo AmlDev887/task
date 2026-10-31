@@ -35,7 +35,15 @@ class TaskResponse(BaseModel):
 #------------------- PATCH REQUEST TASKS ------------------------
 
 class TaskUpdate(BaseModel):
-    id: int
-    title: str
-    description: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
 
+
+class TaskCommentCreate(BaseModel):
+
+    task_id: int
+    author_id:int
+    body:str
+    
