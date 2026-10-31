@@ -1,7 +1,7 @@
 from fastapi import Depends, APIRouter, HTTPException, status
 from app.database.db import get_db
 from app.schemas import tasks, history
-from app.models.models import Projects, Users, ProjectMembers, Tasks, History
+from app.models.models import Comments, ProjectMembers, Tasks, History
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import security
 from sqlalchemy import select
@@ -241,7 +241,7 @@ async def tasks_history(id:int,
             detail = "Таск не найден"
         )
     
-    pro_id = answer.project_id
+    pro_id = answer_1.project_id
     georg = select(ProjectMembers).where(ProjectMembers.project_id == pro_id,
                                                  ProjectMembers.user_id == creator_id)
         
@@ -269,10 +269,44 @@ async def tasks_history(id:int,
     return answer
 
 @router.post("/{id}/comments")
-async def creat_coments(id: int,
-                        comment: tasks.TaskCommentCreate,
-                        db: AsyncSession = Depends(get_db):
+async def creat_coments(
+        id: int,
+        comment: tasks.TaskCommentCreate,
+        author_id: int = Depends(security.scan_token),
+        db: AsyncSession = Depends(get_db),
+    ):
+    """Создание коммента"""
+    stmt = select(Tasks).where(Tasks.id == id)
+    result = await db.execute(stmt)
+    answer = result.scalars().one_or_none()
 
-    stmt = select(Tasks).where(Tasks.id == )
+    if answer is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Таск не найден"
+        )
+
+    pro_id = answer.project_id
+    georg = select(ProjectMembers).where(
+        ProjectMembers.project_id == pro_id, ProjectMembers.user_id == author_id
+    )
+
+    wait = await db.execute(georg)
+    rfag = wait.scalars().one_or_none()
+
+    if rfag is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Нужного проекта нет"
+        )
+    if rfag.role not in (roles.ProjectRole.EDITOR, roles.ProjectRole.OWNER):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Вам доступ не разрешен"
+        )
+
+    comments = Comments(task_id=id, author_id=author_id, body=comment.body)
+    db.add(comments)
+    await db.commit()
+    await db.refresh(comments)
+
+    return {"message": "Коммент создан"}
 
      
