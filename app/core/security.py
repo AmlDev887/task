@@ -54,7 +54,7 @@ async def scan_token(token:Annotated[str,Depends(oauth2_scheme)]):
     except InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Неверный токен,пройдиет авторизацию",
+            detail="Неверный токен,пройдите авторизацию",
         )
         
 

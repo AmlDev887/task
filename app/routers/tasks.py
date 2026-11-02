@@ -5,7 +5,6 @@ from app.models.models import Comments, ProjectMembers, Tasks, History, TaskTags
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import security
 from sqlalchemy import select
-from sqlalchemy.orm import joinedload
 from typing import List,Annotated
 from schemas import roles
 from pathlib import Path
