@@ -1,13 +1,15 @@
-from fastapi import Depends, APIRouter, HTTPException, status
+from fastapi import Depends, APIRouter, HTTPException, status, File, UploadFile
 from app.database.db import get_db
 from app.schemas import tasks, history
-from app.models.models import Comments, ProjectMembers, Tasks, History, TaskTags
+from app.models.models import Comments, ProjectMembers, Tasks, History, TaskTags, Attachments
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import security
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
-from typing import List
+from typing import List,Annotated
 from schemas import roles
+from pathlib import Path
+import uuid
 
 router = APIRouter(
     prefix="/tasks",
@@ -355,3 +357,119 @@ async def create_tag(id: int,
     await db.refresh(tags)
 
     return {"message":"Тег присвоен таску"}
+
+@router.delete("/s/{id}/tags/{tag_id}")
+async def tag_delete(id: int, 
+                     tag_id: int,
+                     user_id: int = Depends(security.scan_token),
+                     db: AsyncSession = Depends(get_db)):
+    """Удаление таска"""
+
+    stmt = select(Tasks).where(Tasks.id == id)
+    result = await db.execute(stmt)
+    answer = result.scalars().one_or_none()
+
+    if answer is None:   
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail = "Таск не найден"
+        )
+    
+    pro_id = answer.project_id
+    georg = select(ProjectMembers).where(ProjectMembers.project_id == pro_id,
+                                         ProjectMembers.user_id == user_id)
+
+    wait = await db.execute(georg)
+    rfag = wait.scalars().one_or_none()
+
+    if rfag is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Нужного проекта нет"
+        )
+    if rfag.role not in (roles.ProjectRole.EDITOR, roles.ProjectRole.OWNER):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Вам доступ не разрешен"
+        )
+
+    search = select(TaskTags).where(TaskTags.task_id == id, TaskTags.tag_id == tag_id)
+    gunger = await db.execute(search)
+    loki = gunger.scalars().one_or_none()
+    
+    if loki is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Тег не найден"
+        )
+    await db.delete(loki)
+    await db.commit()
+
+    return {"message":"Тег удален"}
+
+@router.post("/{id}/attachments")
+async def task_attech(id: int,
+                      fayl: Annotated[UploadFile,File()],
+                      user_id: int = Depends(security.scan_token),
+                      db: AsyncSession = Depends(get_db)):
+    """Добавление файла"""
+
+    stmt = select(Tasks).where(Tasks.id == id)
+    result = await db.execute(stmt)
+    answer = result.scalars().one_or_none()
+
+    if answer is None:   
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail = "Таск не найден"
+        )
+    
+    pro_id = answer.project_id
+    georg = select(ProjectMembers).where(ProjectMembers.project_id == pro_id,
+                                            ProjectMembers.user_id == user_id)
+
+    wait = await db.execute(georg)
+    rfag = wait.scalars().one_or_none()
+
+    if rfag is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Нужного проекта нет"
+        )
+    if rfag.role not in (roles.ProjectRole.EDITOR, roles.ProjectRole.OWNER):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Вам доступ не разрешен"
+        )
+    UPLOAD_DIR = Path("TASK_MENEJER")
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+    unique_name = f"{uuid.uuid4()}_{fayl.filename}"
+    file_path = UPLOAD_DIR / unique_name
+
+    if fayl.size > 100 * 1024 * 1024:
+         return {"message":"Файл не омжет быть больше 100 MB"}
+    if fayl.size == 0:
+         raise HTTPException(
+              status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+              detail = "Пустой файл"
+         )
+    
+    with open(file_path, "wb") as button:
+        while shoko := await fayl.read(1024*1024):
+             button.write(shoko)
+
+    attachment = Attachments(
+        task_id = id,
+        filename = fayl.filename,
+        size = fayl.size,
+        content_type = fayl.content_type,
+        path = str(file_path),
+        uploaded_by = user_id
+    )
+
+    db.add(attachment)
+    await db.commit()
+    await db.refresh(attachment)
+
+    return {"message":"Файл загружен"}
