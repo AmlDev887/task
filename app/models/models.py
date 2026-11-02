@@ -109,7 +109,7 @@ class TaskTags(Base, TimestampMixin):
     
     id:Mapped[int] = mapped_column(BigInteger,primary_key=True, autoincrement=True)
     task_id:Mapped[int] = mapped_column(ForeignKey("tasks.id",ondelete = "CASCADE"), nullable=False)
-    tag_id:Mapped[int] = mapped_column(ForeignKey("tags.id",ondelete = "CASCADE"), nullable=False)
+    tags_id:Mapped[int] = mapped_column(ForeignKey("tags.id",ondelete = "CASCADE"), nullable=False)
 
     task:Mapped["Tasks"] = relationship(back_populates="tasktags")
     tag:Mapped["Tags"] = relationship(back_populates="tasktags")

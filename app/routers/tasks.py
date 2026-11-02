@@ -1,10 +1,11 @@
 from fastapi import Depends, APIRouter, HTTPException, status
 from app.database.db import get_db
 from app.schemas import tasks, history
-from app.models.models import Comments, ProjectMembers, Tasks, History
+from app.models.models import Comments, ProjectMembers, Tasks, History, TaskTags
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import security
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 from typing import List
 from schemas import roles
 
@@ -243,7 +244,7 @@ async def tasks_history(id:int,
     
     pro_id = answer_1.project_id
     georg = select(ProjectMembers).where(ProjectMembers.project_id == pro_id,
-                                                 ProjectMembers.user_id == creator_id)
+                                         ProjectMembers.user_id == creator_id)
         
     wait = await db.execute(georg)
     rfag = wait.scalars().one_or_none()
@@ -310,3 +311,47 @@ async def creat_coments(
     return {"message": "Коммент создан"}
 
      
+#-------------------------- Tags -----------------------------------------
+
+@router.post("/s/{id}/tags/{tag_id}")
+async def create_tag(id: int, 
+                     tag_id: int,
+                     user_id: int = Depends(security.scan_token),
+                     db: AsyncSession = Depends(get_db)):
+    """Присваивание тега к таску"""
+
+    stmt = select(Tasks).where(Tasks.id == id)
+    result = await db.execute(stmt)
+    answer = result.scalars().one_or_none()
+
+    if answer is None:   
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail = "Таск не найден"
+        )
+    
+    pro_id = answer.project_id
+    georg = select(ProjectMembers).where(ProjectMembers.project_id == pro_id,
+                                         ProjectMembers.user_id == user_id)
+
+    wait = await db.execute(georg)
+    rfag = wait.scalars().one_or_none()
+
+    if rfag is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Нужного проекта нет"
+        )
+    if rfag.role not in (roles.ProjectRole.EDITOR, roles.ProjectRole.OWNER):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Вам доступ не разрешен"
+        )
+
+    tags = TaskTags(
+         task_id = id,
+         tags_id = tag_id
+    )
+    db.add(tags)
+    await db.commit()
+    await db.refresh(tags)
+
+    return {"message":"Тег присвоен таску"}
