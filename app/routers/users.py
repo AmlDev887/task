@@ -1,5 +1,4 @@
 from fastapi import Depends, APIRouter, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from app.core import security
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload

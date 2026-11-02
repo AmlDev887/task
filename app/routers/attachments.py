@@ -2,7 +2,7 @@ from fastapi import Depends, APIRouter, HTTPException, status
 from fastapi.responses import FileResponse
 from app.database.db import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models.models import Comments, ProjectMembers, Tasks, History, TaskTags, Attachments
+from app.models.models import ProjectMembers, Tasks, Attachments
 from app.core import security
 from typing import List,Annotated
 from schemas import roles

@@ -1,14 +1,10 @@
 from fastapi import Depends, APIRouter, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from app.core import security
-from sqlalchemy import select,func, insert
-from sqlalchemy.orm import joinedload
-from app.models.models import Projects, Users, ProjectMembers, Tasks, Comments
+from sqlalchemy import select
+from app.models.models import  Comments
 from app.database.db import get_db
 from app.schemas import comments
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
-from schemas import roles
 
 router = APIRouter(prefix="/comments",
                    tags=["comments"])
