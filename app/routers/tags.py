@@ -75,7 +75,7 @@ async def tags_info(user_id: int = Depends(security.scan_token()),
 
 @router.get("/{id}", response_model = List[tags.ResponseTag])
 async def tags_info(id:int,
-                    user_id: int = Depends(security.scan_token()),
+                    user_id: int = Depends(security.scan_token),
                     db: AsyncSession = Depends(get_db)):
     """Создание тега"""
     
@@ -149,6 +149,7 @@ async def tags_update(id:int,
                     user_id: int = Depends(security.scan_token()),
                     db: AsyncSession = Depends(get_db)):
     """Изменение тега"""
+    
     stmt = select(Users).where(Users.id == user_id)
     result = await db.execute(stmt)
     answer = result.scalars().one_or_none()
@@ -174,18 +175,16 @@ async def tags_update(id:int,
             detail = "Тег не найден"
         )
 
-    diklou = yonka.model_dump(exclude=True)
-    for key,new_value in diklou:
-        old_value = gon.key
-        if new_value.strip() is None:
+    diklou = yonka.model_dump(exclude_unset=True)
+    for key,new_value in diklou.items():
+        old_value = getattr(gon,key)
+        if new_value.strip() == "":
             return {"message":"Поле пустое"}
 
         if old_value == new_value:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Поле не изменилось"
-            )
+            continue
         setattr(gon,key,new_value)
+    
     db.add(gon)
     await db.commit()
     await db.refresh(gon)
