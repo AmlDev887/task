@@ -438,7 +438,7 @@ async def task_attech(id: int,
     unique_name = f"{uuid.uuid4()}_{fayl.filename}"
     file_path = UPLOAD_DIR / unique_name
 
-    if fayl.size > 100 * 1024 * 1024:
+    if fayl.size > 5 * 1024 * 1024:
          return {"message":"Файл не омжет быть больше 100 MB"}
     if fayl.size == 0:
          raise HTTPException(
