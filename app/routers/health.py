@@ -5,7 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from redis.exceptions import RedisError
 
 from app.database.db import get_db
-from core.redis import redis_async
+from app.core.redis import redis_async
 
 router = APIRouter(
     prefix="/health",

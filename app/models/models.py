@@ -105,7 +105,7 @@ class Tags(Base, TimestampMixin):
 
 class TaskTags(Base, TimestampMixin):
     __tablename__="task_tags"
-    __table_args__ = (UniqueConstraint("task_id", "tag_id"),)
+    __table_args__ = (UniqueConstraint("task_id", "tags_id"),)
     
     id:Mapped[int] = mapped_column(BigInteger,primary_key=True, autoincrement=True)
     task_id:Mapped[int] = mapped_column(ForeignKey("tasks.id",ondelete = "CASCADE"), nullable=False)

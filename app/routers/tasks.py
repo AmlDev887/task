@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import security
 from sqlalchemy import select
 from typing import List,Annotated
-from schemas import roles
+from app.schemas import roles
 from pathlib import Path
 import uuid
 
@@ -99,7 +99,7 @@ async def task_delete(id: int,
                      creator_id: int = Depends(security.scan_token)):
     """Мягкое удаление таска"""
     
-    body = select(Tasks).where(Tasks.id == id,Tasks.is_deleted == False )
+    body = select(Tasks).where(Tasks.id == id,Tasks.deleted_at == False )
     runner = await db.execute(body)
     answer = runner.scalars().one_or_none()
     if answer is None:
@@ -124,11 +124,11 @@ async def task_delete(id: int,
             detail = "Вам доступ не разрешен"
         )
     
-    answer.is_deleted = True
+    answer.deleted_at = True
     history_update = History(
                     use_id = creator_id,
                     task_id = id,
-                    field = "is_deleted",
+                    field = "deleted_at",
                     old_value = "False",
                     new_value = "True" )
     
@@ -177,11 +177,11 @@ async def task_restore(id: int,
             detail = "Таск не найден"
         )
 
-    answer.is_deleted = False
+    answer.deleted_at = False
     history_update = History(
                 use_id = creator_id,
                 task_id = id,
-                field = "is_deleted",
+                field = "deleted_at",
                 old_value = "True",
                 new_value = "False" )
     
@@ -392,7 +392,7 @@ async def tag_delete(id: int,
             detail="Вам доступ не разрешен"
         )
 
-    search = select(TaskTags).where(TaskTags.task_id == id, TaskTags.tag_id == tag_id)
+    search = select(TaskTags).where(TaskTags.task_id == id, TaskTags.tags_id == tag_id)
     gunger = await db.execute(search)
     loki = gunger.scalars().one_or_none()
     

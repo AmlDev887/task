@@ -19,12 +19,11 @@ class User(BaseModel):
 class UserProjectResponse(BaseModel):
     name:set
     description:str
-
     model_config = ConfigDict(from_attributes=True)
 
 class UserResponse(BaseModel):
     id:int
-    email:EmailStr
+    email:EmailStr | None = None
     full_name:str
     role:roles.OrderRoleUser
     is_active:bool
@@ -34,6 +33,6 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class UserUpdate(BaseModel):
-    email:int | None = None
+    email:EmailStr | None = None
     full_name:str | None = None
     

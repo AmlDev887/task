@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 from app.models import models
 from app.database.db import get_db
-from app.schemas import users
+from app.schemas import users,roles
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
@@ -24,7 +24,7 @@ async def user_info(user_id: int = Depends(security.scan_token),db: AsyncSession
             status_code = status.HTTP_404_NOT_FOUND,
             detail = "Пользователь не найден.Пройдите авторизацию если не прошли"
         )
-    if answer.role != "user":
+    if answer.role != roles.OrderRoleUser.USER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail = "Вам доступ запрещен"
@@ -71,7 +71,7 @@ async def user(user_id: int = Depends(security.scan_token),
                      status_code = status.HTTP_404_NOT_FOUND,
                      detail = "Пользователь не найден"
                  )
-    if answer.role != "admin":
+    if answer.role != roles.OrderRoleUser.ADMIN:
          raise HTTPException(
                     status_code = status.HTTP_403_FORBIDDEN,
                     detail = "Вам запрещен доступ"

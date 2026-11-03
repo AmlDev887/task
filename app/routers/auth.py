@@ -38,8 +38,16 @@ def full_token(user_id):
 @router.post("/register",response_model = AddUser)
 async def add(new_user: UserLogin, db: AsyncSession = Depends(get_db)):
     """Создание нового User"""
-    
+    stmt = select(Users).where(Users.email == new_user.email)
+    result = await db.execute(stmt)
+    answer = result.scalars().one_or_none()
+    if answer:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail = "Такой email существует"
+        )   
     data = new_user.model_dump()
+
     data["hashed_password"] = security.heshing_password(data["password"])
     del data["password"]
 
@@ -53,16 +61,19 @@ async def add(new_user: UserLogin, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/verify")
-async def email_verify(email:auth.EmailVerify,db: AsyncSession = Depends(get_db)):
+async def email_verify(verify:auth.EmailVerify,db: AsyncSession = Depends(get_db)):
     
-    email_code = await redis.redis_async.get(name = email.email)
+    email_code = await redis.redis_async.get(name=f"verify:{verify.email}")
     if not email_code:
         return {"error":"Код устарел или не запрашивался.Хапросите код заново"}
 
-    if email_code != email.code:
-        return {"error":"Неверный код"}
+    if email_code != verify.code:
+         raise HTTPException(
+                    status_code=400,
+                    detail="Код неверный"
+                )
     
-    stmt = select(Users).where(Users.email == email.email)
+    stmt = select(Users).where(Users.email == verify.email)
     result = await db.execute(stmt)
 
     user = result.scalars().one_or_none()
@@ -71,11 +82,11 @@ async def email_verify(email:auth.EmailVerify,db: AsyncSession = Depends(get_db)
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Пользователь не найден"
         )
-    user.is_verified = True
+    user.is_verified = True 
         
     await db.commit()
     await db.refresh(user)
-    await redis.redis_async.delete(email.email)
+    await redis.redis_async.delete(verify.email)
 
     return {"message": "Email успешно подтверждён"}
 
@@ -83,13 +94,14 @@ async def email_verify(email:auth.EmailVerify,db: AsyncSession = Depends(get_db)
 async def check_user(user:Annotated[OAuth2PasswordRequestForm,Depends()], db: AsyncSession = Depends(get_db)):
     """Проверка пользователя и создание токена"""
     
-    stmt = select(Users).where(user.username == Users.email,user.is_verified == True)
-    result = await (db.execute(stmt)).scalar_one_or_none()
+    stmt = select(Users).where(Users.email == user.username)
+    result = await db.execute(stmt)
+    answer = result.scalars().one_or_none()
+
+    if answer and security.verify_password(user.password, answer.hashed_password) and answer.is_verified == False:
+        return full_token(answer.id)
     
-    if result and security.verify_password(user.password, result.hashed_password):
-        return full_token(result.id)
-    
-    if result is None:
+    if answer is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Пользователь не найден"
@@ -145,19 +157,22 @@ async def forgot_password(email:auth.EmailForgot, db: AsyncSession = Depends(get
     return {"message":"Код подтверждения отправлен"}
 
 @router.post("/reset-password")
-async def reset_password(email:auth.EmailReset,db: AsyncSession = Depends(get_db)):
+async def reset_password(reset:auth.EmailReset,db: AsyncSession = Depends(get_db)):
     """Подтверждение нового пароля"""
     
-    redis_code = await redis.redis_async.get(name = email.email)
+    redis_code = await redis.redis_async.get(name=f"reset:{reset.email}")
     if not redis_code:
         raise HTTPException(
             status_code=400,
             detail="Код истёк или не был запрошен"
         )
-    if redis_code != email.code:
-        return {"error":"Неверный код подтверждения"}
+    if redis_code != reset.code:
+         raise HTTPException(
+                    status_code=400,
+                    detail="Код неверный"
+                )
     
-    stmt = select(Users).where(Users.email == email.email,Users.is_verified == True )
+    stmt = select(Users).where(Users.email == reset.email,Users.is_verified == True )
     result = await db.execute(stmt)
     forgot = result.scalars().one_or_none()
 
@@ -167,9 +182,10 @@ async def reset_password(email:auth.EmailReset,db: AsyncSession = Depends(get_db
                 detail = "Пользователь не найден"
             )
         
-    forgot.hashed_password = security.heshing_password(email.new_password)
+    forgot.hashed_password = security.heshing_password(reset.new_password)
 
     await db.commit()
     await db.refresh(forgot)
-    await redis.redis_async.delete(name = email.email)
+    await redis.redis_async.delete(name = reset.email)
+    
     return {"message":"Код успешно изменен"}

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.models import ProjectMembers, Tasks, Attachments
 from app.core import security
 from typing import List,Annotated
-from schemas import roles
+from app.schemas import roles
 from sqlalchemy import select
 
 router = APIRouter(prefix="/attachments",

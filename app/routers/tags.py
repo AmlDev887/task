@@ -4,15 +4,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.models import Users, Tags
 from app.core import security
 from typing import List,Annotated
-from schemas import roles,tags
+from app.schemas import roles,tags
 from sqlalchemy import select
 
 router = APIRouter(prefix="/tags",
-                   tags = "tags")
+                   tags = ["tags"])
 
 @router.post("/",status_code = status.HTTP_201_CREATED)
 async def create_tags(tags: tags.CreateTag,
-                      user_id: int = Depends(security.scan_token()),
+                      user_id: int = Depends(security.scan_token),
                       db: AsyncSession = Depends(get_db)):
     """Создание тега"""
     

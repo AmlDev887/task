@@ -1,3 +1,4 @@
 import redis.asyncio as redis
+from app.core.config import settings
 
-redis_async = redis.Redis(host="localhost", port=6379, db=1, decode_responses=True)
+redis_async = redis.Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=1, decode_responses=True)

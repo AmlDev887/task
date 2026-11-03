@@ -7,7 +7,7 @@ from app.database.db import get_db
 from app.schemas import projects
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
-from schemas import roles
+from app.schemas import roles
 router = APIRouter(prefix="/projects",
                    tags=["projects"])
 
@@ -25,7 +25,7 @@ async def create_project(project: projects.ProjectCreate,
                      status_code = status.HTTP_404_NOT_FOUND,
                      detail = "Пользователь не найден"
                  )
-    if answer.role != "admin":
+    if answer.role != roles.OrderRoleUser.ADMIN:
          raise HTTPException(
                     status_code = status.HTTP_403_FORBIDDEN,
                     detail = "Вам запрещен доступ"
@@ -198,7 +198,7 @@ async def member_user(id:int,
     await db.commit()
 
 @router.get("/{id}/stats", response_model = projects.ProjectTask)
-async def status(id:int,
+async def project_stats(id:int,
                  db: AsyncSession = Depends(get_db)):
     """Вывод статуса"""
     
