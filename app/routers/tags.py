@@ -41,7 +41,7 @@ async def create_tags(tags: tags.CreateTag,
     await db.refresh(goun)
 
 @router.get("/", response_model = List[tags.ResponseTag])
-async def tags_info(user_id: int = Depends(security.scan_token()),
+async def tags_info(user_id: int = Depends(security.scan_token),
                     db: AsyncSession = Depends(get_db)):
     """Создание тега"""
     
@@ -109,7 +109,7 @@ async def tags_info(id:int,
 
 @router.delete("/{id}")
 async def tag_delete(id:int,
-                    user_id: int = Depends(security.scan_token()),
+                    user_id: int = Depends(security.scan_token),
                     db: AsyncSession = Depends(get_db)):
     """Удаление тега"""
     
@@ -146,7 +146,7 @@ async def tag_delete(id:int,
 @router.patch("/{id}")
 async def tags_update(id:int,
                     yonka: tags.UpdateTag,
-                    user_id: int = Depends(security.scan_token()),
+                    user_id: int = Depends(security.scan_token),
                     db: AsyncSession = Depends(get_db)):
     """Изменение тега"""
     
