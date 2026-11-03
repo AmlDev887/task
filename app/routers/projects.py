@@ -32,6 +32,7 @@ async def create_project(project: projects.ProjectCreate,
                 )
     
     result = project.model_dump()
+    result["owner_id"] = user_id
     answer = Projects(**result)
     
     db.add(answer)
@@ -62,7 +63,7 @@ async def project_get(id: int,
               status_code=status.HTTP_404_NOT_FOUND,
               detail="Такого проекта"
          )
-    return {"message": "Проект найден"}
+    return answer
 
 @router.patch("/{id}")
 async def project_update(id:int,
@@ -226,7 +227,7 @@ async def create_task(id:int,
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Проект не найден"
     )
-    if answer.role != (
+    if answer.role not in (
                         roles.ProjectRole.OWNER,
                         roles.ProjectRole.EDITOR
                     ):

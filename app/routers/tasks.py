@@ -1,7 +1,7 @@
 from fastapi import Depends, APIRouter, HTTPException, status, File, UploadFile
 from app.database.db import get_db
 from app.schemas import tasks, history
-from app.models.models import Comments, ProjectMembers, Tasks, History, TaskTags, Attachments
+from app.models.models import Comments, ProjectMembers, Tasks, History, TaskTags, Attachments, Users
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import security
 from sqlalchemy import select
@@ -85,10 +85,6 @@ async def update_task(id: int,
         )
     
     new_task = task.model_dump(exclude_unset = True)
- 
-    
-    for key, value in new_task.items():   
-        setattr(answer,key,value)
 
     await db.commit()
     await db.refresh(answer)       
@@ -205,25 +201,21 @@ async def task_delete(id:int,
             status_code=status.HTTP_404_NOT_FOUND,
             detail = "Таск не найден"
         )
-    pro_id = answer.project_id
-    georg = select(ProjectMembers).where(ProjectMembers.project_id == pro_id,
-                                             ProjectMembers.user_id == creator_id)
+    hunny = select(Users).where(Users.id == creator_id)
+    gunno = await db.execute(hunny)
+    nojo = gunno.scalars().one_or_none()
     
-    wait = await db.execute(georg)
-    rfag = wait.scalars().one_or_none()
-    
-    if rfag is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail = "Нужного проекта нет"
-                )
-    if rfag.role not in (roles.ProjectRole.EDITOR,
-                        roles.ProjectRole.OWNER):
-        raise HTTPException(
-            status_code = status.HTTP_403_FORBIDDEN,
-            detail = "Вам доступ не разрешен"
+    if nojo is None:
+         HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail = "Пользователь не найден"
         )
-
+    if nojo.role != roles.OrderRoleUser.ADMIN:
+        raise HTTPException(
+             status_code=status.HTTP_403_FORBIDDEN,
+             detail="Доступ не разрашен"
+        )
+    
     await db.delete(answer)
     await db.commit()
     return {"message":"Удалено"}
@@ -314,7 +306,7 @@ async def creat_coments(
      
 #-------------------------- Tags -----------------------------------------
 
-@router.post("/s/{id}/tags/{tag_id}")
+@router.post("/{id}/tags/{tag_id}")
 async def create_tag(id: int, 
                      tag_id: int,
                      user_id: int = Depends(security.scan_token),
