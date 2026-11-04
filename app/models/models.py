@@ -69,6 +69,7 @@ class Tasks(Base, TimestampMixin):
     assignee_id:Mapped[Optional[int]] = mapped_column(ForeignKey("users.id",ondelete = "SET NULL"),index=True,nullable=True)
     completed_at:Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True),nullable=True) 
     deleted_at:Mapped[Optional[datetime | None]] = mapped_column(DateTime(timezone=True), nullable=True) 
+    is_deleted:Mapped[bool] = mapped_column(default=False)
     version: Mapped[int] = mapped_column(nullable=False, default= 1)
 
     creator:Mapped["Users"] = relationship(back_populates="created_tasks", foreign_keys=[creator_id])

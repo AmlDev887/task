@@ -8,6 +8,7 @@ from sqlalchemy import select
 from typing import List,Annotated
 from app.schemas import roles
 from pathlib import Path
+from datetime import datetime, timezone
 import uuid
 
 router = APIRouter(
@@ -95,7 +96,7 @@ async def task_delete(id: int,
                      creator_id: int = Depends(security.scan_token)):
     """Мягкое удаление таска"""
     
-    body = select(Tasks).where(Tasks.id == id,Tasks.deleted_at == False )
+    body = select(Tasks).where(Tasks.id == id,Tasks.is_deleted == False )
     runner = await db.execute(body)
     answer = runner.scalars().one_or_none()
     if answer is None:
@@ -120,11 +121,12 @@ async def task_delete(id: int,
             detail = "Вам доступ не разрешен"
         )
     
-    answer.deleted_at = True
+    answer.is_deleted = True
+    answer.deleted_at = datetime.now(timezone.utc())
     history_update = History(
                     use_id = creator_id,
                     task_id = id,
-                    field = "deleted_at",
+                    field = "is_deleted",
                     old_value = "False",
                     new_value = "True" )
     
@@ -173,11 +175,12 @@ async def task_restore(id: int,
             detail = "Таск не найден"
         )
 
-    answer.deleted_at = False
+    answer.is_deleted = False
+    answer.deleted_at = None
     history_update = History(
                 use_id = creator_id,
                 task_id = id,
-                field = "deleted_at",
+                field = "is_deleted",
                 old_value = "True",
                 new_value = "False" )
     

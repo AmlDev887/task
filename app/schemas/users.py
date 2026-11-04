@@ -1,5 +1,6 @@
-from pydantic import BaseModel, Field, EmailStr, ConfigDict
+from pydantic import BaseModel, Field, EmailStr, ConfigDict, field_validator
 from app.schemas import roles
+
 class AddUser(BaseModel):
     id:int
     email:EmailStr
@@ -9,6 +10,18 @@ class UserLogin(BaseModel):
     email: EmailStr | None = None
     full_name: str  = Field(min_length=2, max_length=60)
     password: str = Field(min_length=8)
+
+    @classmethod
+    @field_validator("password")
+    def scanner_password(cls,value):
+        """Проверка пароля на присутвие букв и цифр"""
+        if True not in [char.isalpha() for char in value]:
+            raise ValueError("В пароле должно быть хотя бы одна буква")
+
+        if True not in [char.isdigit() for char in value]:
+            raise ValueError("В пароле должна быть хотя бы одна цифра")
+        
+        return value 
 
 class User(BaseModel):
     email:EmailStr

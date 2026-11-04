@@ -2,8 +2,8 @@ from fastapi import Depends, APIRouter, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from datetime import datetime,timezone,timedelta
 from app.database.db import get_db
-from app.models.models import Users
-from app.schemas.users import AddUser, UserLogin
+from app.models.models import Users, EmailTokens
+from app.schemas.users import AddUser, UserLogin,roles
 from app.schemas import auth
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import security
@@ -13,6 +13,8 @@ from app.workers.celery_app import get_email_code
 from jwt.exceptions import InvalidTokenError
 from app.core import redis
 from typing import Annotated
+import secrets
+import hashlib
 import jwt
 
 router = APIRouter(
@@ -35,9 +37,15 @@ def full_token(user_id):
         "token_type":"bearer"
     }
 
+def heshing(code):
+    hash_object = hashlib.sha256(code.encode("utf-8"))
+    hash = hash_object.hexdigest()
+    return hash
+
 @router.post("/register",response_model = AddUser)
 async def add(new_user: UserLogin, db: AsyncSession = Depends(get_db)):
     """Создание нового User"""
+    
     stmt = select(Users).where(Users.email == new_user.email)
     result = await db.execute(stmt)
     answer = result.scalars().one_or_none()
@@ -50,43 +58,65 @@ async def add(new_user: UserLogin, db: AsyncSession = Depends(get_db)):
 
     data["hashed_password"] = security.heshing_password(data["password"])
     del data["password"]
+    try:
+        answer = Users(**data)
+        db.add(answer)
+        await db.flush()
+        
+        code = secrets.token_urlsafe(32)
+        for_celery_code = heshing(code)
 
-    answer = Users(**data)
-    db.add(answer)
-    await db.commit()
-    await db.refresh(answer)
-
-    get_email_code.delay(new_user.email)
-    return {"message": "Пользователь создан. Код подтверждения отправлен на email"}
-
+        email = EmailTokens(
+            user_id = answer.id,
+            token = for_celery_code,
+            purpose = roles.EmailTokensEnum.VERIFY,
+            expires_at = datetime.now(timezone.utc) + timedelta(hours = 24),
+            used_at = None
+        )
+        db.add(email)
+        
+        await db.commit()
+        await db.refresh(answer)
+    
+    except Exception:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail = 'Не удалось сохранить'
+        )
+    get_email_code.delay(new_user.email,code)
+    return answer
 
 @router.get("/verify")
 async def email_verify(verify:auth.EmailVerify,db: AsyncSession = Depends(get_db)):
     
-    email_code = await redis.redis_async.get(name=f"verify:{verify.email}")
-    if not email_code:
-        return {"error":"Код устарел или не запрашивался.Хапросите код заново"}
-
-    if email_code != verify.code:
-         raise HTTPException(
-                    status_code=400,
-                    detail="Код неверный"
-                )
-    
     stmt = select(Users).where(Users.email == verify.email)
     result = await db.execute(stmt)
-
     user = result.scalars().one_or_none()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Пользователь не найден"
         )
-    user.is_verified = True 
-        
+    second = select(EmailTokens).where(EmailTokens.user_id == user.id) 
+    regen = await db.execute(second)
+    yummy = regen.scalars().one_or_none()
+
+    if yummy is None:
+         raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="email  не найден"
+                )
+    my_code = heshing(verify.code)
+    if yummy.token != my_code or yummy.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code = status.HTTP_401_UNAUTHORIZED,
+            detail = "Неверный код"
+        )
+    
+    user.is_verified = True
     await db.commit()
-    await db.refresh(user)
-    await redis.redis_async.delete(verify.email)
+    await db.refresh(user) 
 
     return {"message": "Email успешно подтверждён"}
 
@@ -98,18 +128,18 @@ async def check_user(user:Annotated[OAuth2PasswordRequestForm,Depends()], db: As
     result = await db.execute(stmt)
     answer = result.scalars().one_or_none()
 
-    if answer and security.verify_password(user.password, answer.hashed_password) and answer.is_verified == False:
+    if answer and security.verify_password(user.password, answer.hashed_password) and answer.is_verified == True:
         return full_token(answer.id)
     
     if answer is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Пользователь не найден"
+            detail="Неверный email или пароль."
         )
     raise HTTPException( status_code=status.HTTP_401_UNAUTHORIZED, 
-                        detail="Неверное имя пользователя или пароль")
+                        detail="Неверный email или пароль.")
 
-
+    
 @router.post("/refresh")
 async def refresh_token(token:Annotated[str,Depends(oauth2_scheme)]):
     """Создание нового токена провркой refresh-а"""
