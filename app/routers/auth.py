@@ -143,7 +143,7 @@ async def check_user(user:Annotated[OAuth2PasswordRequestForm,Depends()], db: As
 @router.post("/refresh")
 async def refresh_token(token:Annotated[str,Depends(oauth2_scheme)]):
     """Создание нового токена провркой refresh-а"""
-    black = await  redis.redis_async.get(name=f"black_list:{token}")
+    black = await redis.redis_async.get(name=f"black_list:{token}")
     if black:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -158,7 +158,7 @@ async def refresh_token(token:Annotated[str,Depends(oauth2_scheme)]):
         if bayong.get("type") != "refresh":
              raise HTTPException(
                             status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="Требуется access-токен"
+                            detail="Требуется refresh-токен"
                         )
                 
     except InvalidTokenError:    
@@ -206,7 +206,7 @@ async def user_logout(user_id: int = Depends(security.scan_token),
 async def forgot_password(email:auth.EmailForgot, db: AsyncSession = Depends(get_db)):
     """Сообщения для изменения пароля"""
     
-    stmt = select(Users).where(Users.email == email.email,Users.is_verified == True )
+    stmt = select(Users).where(Users.email == email.email, Users.is_verified == True )
     result = await db.execute(stmt)
 
     forgot = result.scalars().one_or_none()
@@ -216,25 +216,28 @@ async def forgot_password(email:auth.EmailForgot, db: AsyncSession = Depends(get
             detail = "Пользователь не найден"
         )
     
-    get_email_code.delay(email.email)
+    code = secrets.token_urlsafe(32)
+    await redis.redis_async.set(name = f"reset:{code}",value = email.email, ex = 3600)
+    get_email_code.delay(email.email,code)
+    
     return {"message":"Код подтверждения отправлен"}
 
 @router.post("/reset-password")
 async def reset_password(reset:auth.EmailReset,db: AsyncSession = Depends(get_db)):
     """Подтверждение нового пароля"""
     
-    redis_code = await redis.redis_async.get(name=f"reset:{reset.email}")
+    redis_code = await redis.redis_async.get(name=f"reset:{reset.code}")
+    
     if not redis_code:
         raise HTTPException(
             status_code=400,
             detail="Код истёк или не был запрошен"
         )
-    if redis_code != reset.code:
-         raise HTTPException(
+    if redis_code != reset.email:
+        raise HTTPException(
                     status_code=400,
-                    detail="Код неверный"
+                    detail="неверный email"
                 )
-    
     stmt = select(Users).where(Users.email == reset.email,Users.is_verified == True )
     result = await db.execute(stmt)
     forgot = result.scalars().one_or_none()
@@ -249,6 +252,6 @@ async def reset_password(reset:auth.EmailReset,db: AsyncSession = Depends(get_db
 
     await db.commit()
     await db.refresh(forgot)
-    await redis.redis_async.delete(name = reset.email)
+    await redis.redis_async.delete(name=f"reset:{reset.code}")
     
     return {"message":"Код успешно изменен"}
