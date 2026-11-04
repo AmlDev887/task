@@ -77,7 +77,7 @@ async def project_get(id: int,
 
 @router.patch("/{id}")
 async def project_update(id:int,
-                         update:projects.ProjectCreate,
+                         update:projects.ProjectUpdate,
                          user_id:int = Depends(security.scan_token),
                          db: AsyncSession = Depends(get_db)):
     """Обновление проекта"""
@@ -85,7 +85,11 @@ async def project_update(id:int,
                                               joinedload(ProjectMembers.user)).where(ProjectMembers.user_id == user_id, ProjectMembers.project_id == id)
     runner = await db.execute(user)
     budy = runner.scalars().one_or_none()
-    
+    if budy is None:
+        raise HTTPException(
+             status_code=status.HTTP_404_NOT_FOUND,
+             detail = "Проект не найдено"
+        )
     if budy.role == roles.ProjectRole.VIEWER:
         raise HTTPException(
              status_code=status.HTTP_403_FORBIDDEN,
@@ -100,26 +104,31 @@ async def project_update(id:int,
                       status_code=status.HTTP_404_NOT_FOUND,
                       detail="Такого проекта"
                  )
-    for_iterate = update.model_dump()
+    for_iterate = update.model_dump(exclude_unset=True)
+
     for key,value in  for_iterate.items():
          setattr(answer,key,value)
 
-    db.add(answer)
     await db.commit()
     await db.refresh(answer)
 
     return {"message":"изменения применены"}
 
-@router.delete("/{id}")
+@router.delete("/{id}",status_code=status.HTTP_204_NO_CONTENT)
 async def project_delete(id:int,
                          user_id:int = Depends(security.scan_token),
                          db: AsyncSession = Depends(get_db)):
-    """Обновление проекта"""
+    """Удаление проекта"""
     user = select(ProjectMembers).options(joinedload(ProjectMembers.project),                                   
                                           joinedload(ProjectMembers.user)).where(ProjectMembers.user_id == user_id, 
                                                                                  ProjectMembers.project_id == id)
     runner = await db.execute(user)
     budy = runner.scalars().one_or_none()
+    if budy is None:
+            raise HTTPException(
+                 status_code=status.HTTP_404_NOT_FOUND,
+                 detail = "Проект не найдено"
+            )
     
     if budy.role != roles.ProjectRole.OWNER:
         raise HTTPException(
@@ -167,7 +176,7 @@ async def member_user(id:int,
     new_member = ProjectMembers(
     project_id=id,
     user_id=int(member.user_id),
-    role=member.owner_id
+    role=member.role
 )
 
     db.add(new_member)
@@ -181,6 +190,7 @@ async def member_user(id:int,
                       owner:projects.ProjectOwnerDelete,
                       user_id:int = Depends(security.scan_token),
                       db: AsyncSession = Depends(get_db)):
+    
     user = select(ProjectMembers).options(
             joinedload(ProjectMembers.project),
             joinedload(ProjectMembers.user)

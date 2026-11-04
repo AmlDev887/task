@@ -14,7 +14,7 @@ class ProjectResponse(BaseModel):
 
 class CreateOwner(BaseModel):
     user_id:str
-    owner_id:roles.ProjectRole
+    role:roles.ProjectRole
 
 class ProjectOwnerDelete(BaseModel):
     member_id: int
@@ -56,4 +56,8 @@ class ProjectTaskResponse(BaseModel):
     due_date: date | None
     project_id: int
     assignee_id: int | None
-    
+
+class ProjectUpdate(BaseModel):
+    name: str | None = Field(min_length=1, max_length=50)
+    description: str | None = Field(default=None, max_length=225)
+
