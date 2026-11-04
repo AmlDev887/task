@@ -9,8 +9,6 @@ from app.models.models import EmailTokens
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.database.db import get_db
-from typing import Annotated
-from datetime 
 celery = Celery("task", broker="redis://localhost:6379/0")
 redis_client =  redis.Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=1, decode_responses=True)
 

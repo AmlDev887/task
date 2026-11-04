@@ -10,7 +10,7 @@ from app.core import security
 from app.core.config import settings
 from sqlalchemy import select
 from app.workers.celery_app import get_email_code
-from jwt.exceptions import InvalidTokenError
+from jwt.exceptions import InvalidTokenError, PyJWTError
 from app.core import redis
 from typing import Annotated
 import secrets
@@ -108,7 +108,7 @@ async def email_verify(verify:auth.EmailVerify,db: AsyncSession = Depends(get_db
                     detail="email  не найден"
                 )
     my_code = heshing(verify.code)
-    if yummy.token != my_code or yummy.expires_at < datetime.now(timezone.utc):
+    if yummy.token != my_code or yummy.expires_at < datetime.now(timezone.utc) or yummy.used_at is None:
         raise HTTPException(
             status_code = status.HTTP_401_UNAUTHORIZED,
             detail = "Неверный код"
@@ -143,7 +143,12 @@ async def check_user(user:Annotated[OAuth2PasswordRequestForm,Depends()], db: As
 @router.post("/refresh")
 async def refresh_token(token:Annotated[str,Depends(oauth2_scheme)]):
     """Создание нового токена провркой refresh-а"""
-    
+    black = await  redis.redis_async.get(name=f"black_list:{token}")
+    if black:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="ваш токен отменен"
+        )
     try:
         bayong = jwt.decode(
             token,
@@ -165,9 +170,37 @@ async def refresh_token(token:Annotated[str,Depends(oauth2_scheme)]):
     return full_token(bayong["user_id"])
 
 
-@router.post("/logout/{id}")
-async def  user_logout():
-    pass
+@router.post("/logout")
+async def user_logout(user_id: int = Depends(security.scan_token),
+                      refresh_token:str = Depends(oauth2_scheme),
+                      db: AsyncSession = Depends(get_db)):
+    """Дабвление токена в черный список"""
+    
+    stmt = select(Users).where(Users.id == user_id)
+    result = await db.execute(stmt)
+    answer = result.scalars().one_or_none()
+    if answer is None:
+        raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail = "Пользователь не найден"
+            )
+    if answer.role != (roles.OrderRoleUser.USER,
+                       roles.OrderRoleUser.ADMIN):
+        raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail = "Вам сюда нельзя"
+            )       
+    try:
+        yohoo = jwt.decode(refresh_token, settings.SECRET_KEY_2, algorithms=["HS256"])
+    except PyJWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Неверный токен"
+        )
+    token_time = yohoo["exp"] - datetime.now(timezone.utc).timestamp()
+    blacklist = await redis.redis_async.set(name = f"black_list:{refresh_token}",ex = token_time)
+
+    return {"message":"Refresh token  добавлен в черный список"}     
 
 @router.post("/forgot-password")
 async def forgot_password(email:auth.EmailForgot, db: AsyncSession = Depends(get_db)):
