@@ -25,8 +25,10 @@ async def create_project(project: projects.ProjectCreate,
                      status_code = status.HTTP_404_NOT_FOUND,
                      detail = "Пользователь не найден"
                  )
-    if answer.role != roles.OrderRoleUser.ADMIN:
-         raise HTTPException(
+    if answer.role != (roles.OrderRoleUser.ADMIN,
+                       roles.OrderRoleUser.USER):
+         
+        raise HTTPException(
                     status_code = status.HTTP_403_FORBIDDEN,
                     detail = "Вам запрещен доступ"
                 )
@@ -39,29 +41,37 @@ async def create_project(project: projects.ProjectCreate,
     await db.commit()
     await db.refresh(answer)
 
+    return {"message":"Проект создан"}
+
 @router.get("/",response_model=List[projects.ProjectResponse])
 async def project_info(page: int = 1,       
                        size: int = 20,
+                       user_id: int = Depends(security.scan_token),
                        db: AsyncSession = Depends(get_db)):
-     offset = (page - 1) * size
-     stmt = select(Projects).order_by(Projects.id.asc()).offset(offset).limit(size)
-     result = await db.execute(stmt)
 
-     answer = result.scalars().all()
+    
+    offset = (page - 1) * size
+    stmt = select(Projects).where(Projects.owner_id == user_id).order_by(Projects.id.asc()).offset(offset).limit(size)
+    
+    result = await db.execute(stmt)
+    answer = result.scalars().all()
 
-     return answer
+    return answer
 
 @router.get("/{id}",response_model=projects.ProjectResponse)
 async def project_get(id: int, 
+                      user_id: int = Depends(security.scan_token),
                       db: AsyncSession = Depends(get_db)):
     """Вывод проекта"""
-    stmt = select(Projects).where(Projects.id == id)
+    
+    stmt = select(Projects).where(Projects.id == id, Projects.owner_id == user_id)
     result = await db.execute(stmt)
     answer = result.scalars().one_or_none()
+   
     if answer is None:
          raise HTTPException(
               status_code=status.HTTP_404_NOT_FOUND,
-              detail="Такого проекта"
+              detail="Такого проекта нет"
          )
     return answer
 
@@ -200,7 +210,7 @@ async def member_user(id:int,
 
 @router.get("/{id}/stats", response_model = projects.ProjectTask)
 async def project_stats(id:int,
-                 db: AsyncSession = Depends(get_db)):
+                        db: AsyncSession = Depends(get_db)):
     """Вывод статуса"""
     
     stmt = select(Tasks.status,func.count()).where(Tasks.project_id == id).group_by(Tasks.status)

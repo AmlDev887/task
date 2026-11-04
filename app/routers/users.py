@@ -24,7 +24,9 @@ async def user_info(user_id: int = Depends(security.scan_token),db: AsyncSession
             status_code = status.HTTP_404_NOT_FOUND,
             detail = "Пользователь не найден.Пройдите авторизацию если не прошли"
         )
-    if answer.role != roles.OrderRoleUser.USER:
+    if answer.role != (roles.OrderRoleUser.USER,
+                       roles.OrderRoleUser.ADMIN):
+        
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail = "Вам доступ запрещен"
@@ -33,7 +35,7 @@ async def user_info(user_id: int = Depends(security.scan_token),db: AsyncSession
 
 @router.patch("/me")
 async def user_update(update: users.UserUpdate,user_id: int = Depends(security.scan_token),db: AsyncSession = Depends(get_db)):
-    """Ввеод изменений на профиль пользователя"""
+    """Ввод изменений на профиль пользователя"""
     
     stmt = select(models.Users).where(models.Users.id == user_id)
     result = await db.execute(stmt)
