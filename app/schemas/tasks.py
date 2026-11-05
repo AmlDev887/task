@@ -47,6 +47,5 @@ class TaskUpdate(BaseModel):
 class TaskCommentCreate(BaseModel):
 
     task_id: int
-    author_id:int
     body:str
     

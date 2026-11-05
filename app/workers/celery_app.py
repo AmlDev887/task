@@ -26,3 +26,15 @@ def get_email_code(email: str,code):
         server.login("xolmurodov@gmail.com","surface")
         server.sendmail(msg["From"],[email], msg.as_string())
     
+@celery.task
+def get_email_user(email_author,email_user,text):
+    
+    msg = MIMEText(text)
+    msg["Subject"] = "Вас упоменули"
+    msg["From"] = email_author
+    msg["To"] = email_user
+
+    with smtplib.SMTP("smtp.gmail.com",587) as server:
+        server.starttls()
+        server.login(email_author,"surface")
+        server.sendmail(msg["From"],[email_user], msg.as_string())

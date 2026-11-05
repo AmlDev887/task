@@ -1,6 +1,6 @@
 from fastapi import Depends, APIRouter, HTTPException, status, File, UploadFile
 from app.database.db import get_db
-from app.schemas import tasks, history
+from app.schemas import tasks, history, comments
 from app.models.models import Comments, ProjectMembers, Tasks, History, TaskTags, Attachments, Users
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import security
@@ -10,7 +10,9 @@ from app.schemas import roles
 from pathlib import Path
 from datetime import datetime, timezone
 from sqlalchemy.orm import joinedload, selectinload
+from workers.celery_app import get_email_user
 import uuid
+import re
 
 router = APIRouter(
     prefix="/tasks",
@@ -170,7 +172,7 @@ async def task_delete(id: int,
         )
     
     answer.is_deleted = True
-    answer.deleted_at = datetime.now(timezone.utc())
+    answer.deleted_at = datetime.now(timezone.utc)
     history_update = History(
                     use_id = creator_id,
                     task_id = id,
@@ -198,7 +200,11 @@ async def task_restore(id: int,
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail = "Таск не найден"
                 )
-
+    if answer.deleted_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Задача не удалена"
+        )
     pro_id = answer.project_id
     georg = select(ProjectMembers).where(ProjectMembers.project_id == pro_id,
                                          ProjectMembers.user_id == creator_id)
@@ -217,11 +223,6 @@ async def task_restore(id: int,
             detail = "Вам доступ не разрешен"
         )
 
-    if answer is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail = "Таск не найден"
-        )
 
     answer.is_deleted = False
     answer.deleted_at = None
@@ -238,7 +239,7 @@ async def task_restore(id: int,
     return answer
     
 @router.delete("/{id}/hard")
-async def task_delete(id:int,
+async def task_hard_delete(id:int,
                       creator_id: int = Depends(security.scan_token),
                       db: AsyncSession = Depends(get_db)):
     """Удаление таска без возможности восстановить"""
@@ -257,7 +258,7 @@ async def task_delete(id:int,
     nojo = gunno.scalars().one_or_none()
     
     if nojo is None:
-         HTTPException(
+        raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail = "Пользователь не найден"
         )
@@ -342,19 +343,68 @@ async def creat_coments(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Нужного проекта нет"
         )
-    if rfag.role not in (roles.ProjectRole.EDITOR, roles.ProjectRole.OWNER):
+    if rfag.role not in (roles.ProjectRole.EDITOR, roles.ProjectRole.OWNER, roles.ProjectRole.VIEWER):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Вам доступ не разрешен"
         )
 
     comments = Comments(task_id=id, author_id=author_id, body=comment.body)
+    user = select(Users).where(Users.id == author_id)
+    yuhu = await db.execute(user)
+    ronaldo = yuhu.scalars().one_or_none()
+    
+    if ronaldo is None:
+        raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, 
+        detail="Отправтель не найден")
+        
+    EMAIL_PATTERN = r"(?i)(?<![\w.+-])[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+"
+    email = re.findall(EMAIL_PATTERN, comment.body)
+    for e in email:
+        get_email_user.delay(ronaldo.email, e, comment.body)
+    
     db.add(comments)
     await db.commit()
     await db.refresh(comments)
 
     return {"message": "Коммент создан"}
 
-     
+@router.get("/{id}/comments",response_model = comments.CommentResponse)
+async def get_comment(id: int,
+                      user_id: int = Depends(security.scan_token),
+                      db: AsyncSession = Depends(get_db)):
+    """Вывод комменатриев по аайди таска""" 
+    
+    stmt = select(Tasks).options(selectinload(Tasks.comment)).where(Tasks.id == id)
+    result = await db.execute(stmt)
+    answer = result.scalars().one_or_none()
+    if answer is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Таск не найден")
+    
+    pro_id = answer.project_id
+    georg = select(ProjectMembers).where(
+        ProjectMembers.project_id == pro_id, 
+        ProjectMembers.user_id == user_id
+    )
+    wait = await db.execute(georg)
+    rfag = wait.scalars().one_or_none()
+
+    if rfag is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Нужного проекта нет"
+        )
+    if rfag.role not in (roles.ProjectRole.EDITOR, 
+                         roles.ProjectRole.OWNER, 
+                         roles.ProjectRole.VIEWER):
+        
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Вам доступ не разрешен"
+        )     
+    return answer
 #-------------------------- Tags -----------------------------------------
 
 @router.post("/{id}/tags/{tag_id}")

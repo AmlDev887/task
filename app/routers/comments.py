@@ -24,10 +24,13 @@ async def my_comments(id: int,
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="комментарий не найден"
         )
-    if answer.body == body.body_update:
-        return {"message": "Одинаковый текст, ничего не поменялось"}
+    if answer.body == body.body:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail = "Запись сущесвтует"
+        )
 
-    new_text = body.body_update.strip() if body.body_update else ""
+    new_text = body.body.strip() if body.body else ""
     if not new_text:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -40,7 +43,7 @@ async def my_comments(id: int,
 
     return {"message": "Комментарий успешно обновлен"}
 
-@router.delete("/{id}")
+@router.delete("/{id}",status_code=status.HTTP_204_NO_CONTENT)
 async def comment_delete(id: int,
                          user_id: int = Depends(security.scan_token),
                          db: AsyncSession =  Depends(get_db)):

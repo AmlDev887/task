@@ -8,4 +8,7 @@ class CommentCreate(BaseModel):
 
 class CommentUpdate(BaseModel):
 
-    body_update: str
+    body: str
+
+class CommentResponse(BaseModel):
+    
