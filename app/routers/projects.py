@@ -8,6 +8,7 @@ from app.schemas import projects
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from app.schemas import roles
+from datetime import date
 router = APIRouter(prefix="/projects",
                    tags=["projects"])
 
@@ -25,7 +26,7 @@ async def create_project(project: projects.ProjectCreate,
                      status_code = status.HTTP_404_NOT_FOUND,
                      detail = "Пользователь не найден"
                  )
-    if answer.role != (roles.OrderRoleUser.ADMIN,
+    if answer.role not in (roles.OrderRoleUser.ADMIN,
                        roles.OrderRoleUser.USER):
          
         raise HTTPException(
@@ -203,7 +204,7 @@ async def member_user(id:int,
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Проект не найден"
         )
-    if budy.role != roles.ProjectRole.OWNER:
+    if budy.role not in roles.ProjectRole.OWNER:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail = "Доступ не разрешен вы не (Admin)"
@@ -220,10 +221,27 @@ async def member_user(id:int,
 
 @router.get("/{id}/stats", response_model = projects.ProjectTask)
 async def project_stats(id:int,
+                        user_id: int = Depends(security.scan_token),
                         db: AsyncSession = Depends(get_db)):
     """Вывод статуса"""
+    yohoo = select(ProjectMembers).where(ProjectMembers.project_id == id , ProjectMembers.user_id == user_id)
+    bang = await db.execute(yohoo)
+    hunny = bang.scalars().one_or_none()
     
-    stmt = select(Tasks.status,func.count()).where(Tasks.project_id == id).group_by(Tasks.status)
+    if hunny is None:
+        raise HTTPException(
+             status_code=status.HTTP_404_NOT_FOUND,
+             detail = "Пользователь или проект не найден"
+        )
+    if hunny.role not in  (roles.ProjectRole.VIEWER,
+                     roles.ProjectRole.EDITOR,
+                     roles.ProjectRole.OWNER):
+        
+        raise HTTPException(
+             status_code = status.HTTP_403_FORBIDDEN,
+             detail="Вам сюда нельзя"
+        )
+    stmt = select(Tasks.status,func.count()).where(Tasks.project_id == id, Tasks.is_deleted == False ).group_by(Tasks.status)
     result = await db.execute(stmt)
     answer = result.all()
 
@@ -238,10 +256,12 @@ async def create_task(id:int,
                       user_id: int = Depends(security.scan_token),
                       db: AsyncSession = Depends(get_db)):
     """Создание нового таска"""
+    
     stmt = select(ProjectMembers).where(ProjectMembers.user_id == user_id,
                                         ProjectMembers.project_id == id)
     result = await db.execute(stmt)
     answer = result.scalars().one_or_none()
+    
     if answer is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -254,7 +274,23 @@ async def create_task(id:int,
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail = "Доступ не разрешен вы не (Editor,Owner)"
-    )
+        )
+    if update.due_date < date.today():
+        raise HTTPException(
+            status_code=400,
+            detail="Дата окаончания не может быть меньше текущей даты"
+        )
+    if update.assignee_id:
+        dunny = await db.execute(select(ProjectMembers).where(ProjectMembers.project_id == id, 
+                                                            ProjectMembers.user_id == update.assignee_id
+                                                                ))
+        funny = dunny.scalars().one_or_none()
+        if funny is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail = "Пользователь не состоит в проекте"
+            )
+    
     task = Tasks(
         title= update.title,
         description=update.description,
@@ -269,23 +305,31 @@ async def create_task(id:int,
     await db.commit()
     await db.refresh(task)
     
-    return task
+    return {"message":"Таск создан"}
 
 @router.get("/{id}/tasks",response_model=List[projects.ProjectTaskResponse])
 async def task_response(id:int,
+                        user_id: int = Depends(security.scan_token),
                         db: AsyncSession = Depends(get_db)):
     """Вывод всех тасков конкреотного проекта"""
-    project = select(Projects).where(Projects.id == id)
-    vudy = await db.execute(project)
-    runner = vudy.scalars().one_or_none()
-    if runner is None:
-         raise HTTPException(
-                     status_code=status.HTTP_404_NOT_FOUND,
-                     detail="Проект не найден"
-             )
-    stmt = select(Tasks).where(Tasks.project_id == id)
+    stmt = select(ProjectMembers).where(
+        ProjectMembers.project_id == id,
+        ProjectMembers.user_id == user_id
+    )
     result = await db.execute(stmt)
-    answer = result.scalars().all()
-    if not answer:
-        return []
-    return answer
+    member = result.scalars().one_or_none()
+
+    if member is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Проект не найден"
+        )
+
+    stmt = select(Tasks).where(
+        Tasks.project_id == id,
+        Tasks.deleted_at.is_(None)
+    )
+    result = await db.execute(stmt)
+    tasks = result.scalars().all()
+
+    return tasks

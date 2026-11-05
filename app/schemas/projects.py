@@ -26,7 +26,7 @@ class ProjectTask(BaseModel):
 class ProjectTaskUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid",str_strip_whitespace=True)
 
-    title: str = Field(min_length=1, max_length=200)
+    title: str = Field(min_length=3, max_length=200)
     description: Optional[str] = Field(default=None, max_length=225)
     status: roles.TaskStatus = roles.TaskStatus.TODO
     priority: roles.TaskPriority = roles.TaskPriority.MEDIUM
@@ -49,10 +49,11 @@ class ProjectTaskUpdate(BaseModel):
         return value
 
 class ProjectTaskResponse(BaseModel):
+    id:int
     title: str
     description: str | None
-    status: str
-    priority: str
+    status: str = roles.TaskStatus
+    priority: str = roles.TaskPriority
     due_date: date | None
     project_id: int
     assignee_id: int | None

@@ -9,6 +9,7 @@ from typing import List,Annotated
 from app.schemas import roles
 from pathlib import Path
 from datetime import datetime, timezone
+from sqlalchemy.orm import joinedload, selectinload
 import uuid
 
 router = APIRouter(
@@ -18,10 +19,11 @@ router = APIRouter(
 
 @router.get("/{id}",response_model=tasks.TaskResponse)
 async def all_task(id: int, 
-             db: AsyncSession = Depends(get_db)):
+                   user_id: int = Depends(security.scan_token),
+                   db: AsyncSession = Depends(get_db)):
     """Получение одного таска"""
     
-    stmt = select(Tasks).where(Tasks.id == id)
+    stmt = select(Tasks).where(Tasks.id == id, Tasks.deleted_at is None)
     result = await db.execute(stmt)
     answer = result.scalars().one_or_none()
     if answer is None:
@@ -29,7 +31,36 @@ async def all_task(id: int,
             status_code=status.HTTP_404_NOT_FOUND,
             detail = "Пользователь не найден"
         )
-    return answer
+
+    user = select(ProjectMembers).where(ProjectMembers.project_id == answer.project_id, 
+                                        ProjectMembers.user_id == user_id)
+    gummy = await db.execute(user)
+    yohoo = gummy.scalars().one_or_none()
+
+    if yohoo is None:
+          raise HTTPException(
+                     status_code=status.HTTP_404_NOT_FOUND,
+                     detail = "Пользователь не найден"
+                 )
+
+
+    from_join = select(Tasks).options(joinedload(Tasks.creator),
+                                      joinedload(Tasks.assignee),
+                                      joinedload(Tasks.project),
+                                      selectinload(Tasks.tasktags).joinedload(TaskTags.tag),
+                                      selectinload(Tasks.comment),
+                                      selectinload(Tasks.history),
+                                      selectinload(Tasks.attachments)).where(Tasks.id == id)
+    kimi_ki = await db.execute(from_join)
+    groking_grok = kimi_ki.scalars().one_or_none()
+    
+    if groking_grok is None:
+        raise HTTPException(
+             status_code = status.HTTP_404_NOT_FOUND,
+             detail = "Таск не найден"
+        )
+    
+    return groking_grok
 
 
 @router.patch("/{id}")

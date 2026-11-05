@@ -25,7 +25,6 @@ class ProjectTask(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class TaskResponse(BaseModel):
-    user:UsersTasks 
     project: ProjectTask
     title:str
     description:Optional[str] = None
