@@ -370,12 +370,12 @@ async def creat_coments(
     return {"message": "Коммент создан"}
 
 @router.get("/{id}/comments",response_model = comments.CommentResponse)
-async def get_comment(id: int,
+async def get_task_comments(id: int,
                       user_id: int = Depends(security.scan_token),
                       db: AsyncSession = Depends(get_db)):
     """Вывод комменатриев по аайди таска""" 
     
-    stmt = select(Tasks).options(selectinload(Tasks.comment)).where(Tasks.id == id)
+    stmt = select(Tasks).options(selectinload(Tasks.comment)).where(Tasks.id == id,Tasks.deleted_at.is_(None))
     result = await db.execute(stmt)
     answer = result.scalars().one_or_none()
     if answer is None:

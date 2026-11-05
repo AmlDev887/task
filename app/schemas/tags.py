@@ -11,7 +11,7 @@ class ResponseTag(BaseModel):
     color:str
 
 class UpdateTag(BaseModel):
-    
+    id:int
     name:Optional[str] = None 
     color:Optional[str] = None
     

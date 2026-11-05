@@ -32,6 +32,13 @@ async def create_tags(tags: tags.CreateTag,
             detail="Вам доступ не разрашен"
         )
 
+    yohoo = await db.execute(select(Tags).where(Tags.name == tags.name))
+    junku = yohoo.scalars().one_or_none()
+    if junku :
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail = "Тег с таким именем уже существует"
+        )
     goun = Tags(
         name = tags.name,
         color = tags.color
@@ -39,6 +46,8 @@ async def create_tags(tags: tags.CreateTag,
     db.add(goun)
     await db.commit()
     await db.refresh(goun)
+    
+    return "Тег создан" 
 
 @router.get("/", response_model = List[tags.ResponseTag])
 async def tags_info(user_id: int = Depends(security.scan_token),
@@ -62,18 +71,12 @@ async def tags_info(user_id: int = Depends(security.scan_token),
         )
 
     founer = await db.execute(select(Tags))
-    juky = founer.scalars().one_or_none()
-
-    if juky is None:
-        raise HTTPException(
-            status_code = status.HTTP_404_NOT_FOUND,
-            detail = "тег не найден"
-        )
+    juky = founer.scalars().all()
 
     return juky
 
 
-@router.get("/{id}", response_model = List[tags.ResponseTag])
+@router.get("/{id}", response_model = tags.ResponseTag)
 async def tags_info(id:int,
                     user_id: int = Depends(security.scan_token),
                     db: AsyncSession = Depends(get_db)):
@@ -95,7 +98,7 @@ async def tags_info(id:int,
             detail="Вам доступ не разрашен"
         )
 
-    founer = await db.execute(select(Tags.id == id))
+    founer = await db.execute(select(Tags).where(Tags.id == id))
     juky = founer.scalars().one_or_none()
 
     if juky is None:
@@ -178,7 +181,10 @@ async def tags_update(id:int,
     diklou = yonka.model_dump(exclude_unset=True)
     for key,new_value in diklou.items():
         old_value = getattr(gon,key)
-        if new_value.strip() == "":
+        
+        if new_value is None or (
+    isinstance(new_value, str) and not new_value.strip()
+                                                        ):
             return {"message":"Поле пустое"}
 
         if old_value == new_value:
