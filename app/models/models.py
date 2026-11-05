@@ -80,6 +80,7 @@ class Tasks(Base, TimestampMixin):
     history:Mapped[List["History"]] = relationship(back_populates="task")
     attachments:Mapped[List["Attachments"]] = relationship(back_populates="task")
 
+    __mapped_args__ = {"version_id_col":version}
 
 class Attachments(Base, TimestampMixin):
     __tablename__ = "attachments"
@@ -138,6 +139,7 @@ class History(Base, TimestampMixin):
     user: Mapped["Users"] = relationship(back_populates="history")
     task: Mapped["Tasks"]= relationship(back_populates="history")
 
+    
 class EmailTokens(Base, TimestampMixin):
     __tablename__ = "email_tokens"
 

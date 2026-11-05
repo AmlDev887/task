@@ -42,8 +42,7 @@ async def all_task(id: int,
                      status_code=status.HTTP_404_NOT_FOUND,
                      detail = "Пользователь не найден"
                  )
-
-
+    
     from_join = select(Tasks).options(joinedload(Tasks.creator),
                                       joinedload(Tasks.assignee),
                                       joinedload(Tasks.project),
@@ -62,26 +61,41 @@ async def all_task(id: int,
     
     return groking_grok
 
-
 @router.patch("/{id}")
 async def update_task(id: int, 
                 task: tasks.TaskUpdate,
                 user_id: int = Depends(security.scan_token),
                 db: AsyncSession = Depends(get_db)
                 ):
- 
     body = select(Tasks).where(Tasks.id == id )
     runner = await db.execute(body)
     answer = runner.scalars().one_or_none()
+
     if answer is None:
         raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail = "Таск не найден"
                 )
-    pro_id = answer.project_id
-    georg = select(ProjectMembers).where(ProjectMembers.project_id == pro_id,
-                                         ProjectMembers.user_id == user_id)
+    task_status_one = answer.status
+    if answer.deleted_at is not None:
+                raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail = "Таск не найден"
+            )
+    if task.assignee_id is not None:
+        pro_id = answer.project_id
+        georg_ass = select(ProjectMembers).where(ProjectMembers.project_id == pro_id,
+                                            ProjectMembers.user_id == task.assignee_id)
+        ahaha = await db.execute(georg_ass)
+        rfag = ahaha.scalars().one_or_none()    
+        
+        if rfag is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail = "Пользователь (приниматель) не нашлось")
     
+    georg = select(ProjectMembers).where(ProjectMembers.project_id == pro_id,
+                                            ProjectMembers.user_id == user_id) 
     wait = await db.execute(georg)
     rfag = wait.scalars().one_or_none()
     if rfag is None:
@@ -95,6 +109,9 @@ async def update_task(id: int,
             status_code = status.HTTP_403_FORBIDDEN,
             detail = "Вам доступ не разрешен"
         )
+    if task_status_one != roles.TaskStatus.DONE and task.status == roles.TaskStatus.DONE:
+         answer.completed_at = datetime.now(timezone.utc)
+
     
     hunter = task.model_dump(exclude_unset=True)
     for key,new_value in hunter.items():
@@ -115,11 +132,11 @@ async def update_task(id: int,
             status_code=status.HTTP_404_NOT_FOUND,
             detail = "Пользователь не найден"
         )
-    
-    new_task = task.model_dump(exclude_unset = True)
 
     await db.commit()
     await db.refresh(answer)       
+
+    return answer
 
 @router.delete("/{id}")
 async def task_delete(id: int, 

@@ -34,8 +34,12 @@ class TaskResponse(BaseModel):
 #------------------- PATCH REQUEST TASKS ------------------------
 
 class TaskUpdate(BaseModel):
+
+    assignee_id:Optional[int] = None
     title: Optional[str] = None
     description: Optional[str] = None
+    due_date: Optional[date] = None
+    assignee_id: Optional[int] = None
     status: Optional[str] = None
     priority: Optional[str] = None
 
