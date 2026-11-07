@@ -540,10 +540,14 @@ async def task_attech(id: int,
     file_path = UPLOAD_DIR / unique_name
 
     if fayl.size > 5 * 1024 * 1024:
-         return {"message":"Файл не омжет быть больше 100 MB"}
+        raise HTTPException(
+             status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+             detail = "Привысили допустимый объекм файла"
+        )
     if fayl.size == 0:
-         raise HTTPException(
-              status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+        fayl.unlink()
+        raise HTTPException(
+              status_code=status.HTTP_400_BAD_REQUEST,
               detail = "Пустой файл"
          )
     

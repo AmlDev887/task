@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 router = APIRouter(prefix="/attachments",
                    tags=["attachments"])
-
+ALLOWED_EXTENSIONS  = {".pdf", ".png", ".jpg", ".docx"}
 @router.get("/{id}")
 async def get_file(id: int,
                    user_id: int = Depends(security.scan_token),
@@ -22,7 +22,7 @@ async def get_file(id: int,
 
     if answer is None:
         raise HTTPException(
-            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail = "Файл не найден"
         )
     stmt_1 = select(Tasks).where(Tasks.id == answer.task_id)
