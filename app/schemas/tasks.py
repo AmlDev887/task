@@ -1,13 +1,14 @@
 from pydantic import BaseModel, Field, ConfigDict
-from app.schemas.roles import TaskStatus,TaskPriority
+from app.schemas import roles
 from datetime import date
 from typing import Optional
+from datetime import datetime
 
 class TaskScheme(BaseModel):
     title:str
     description:Optional[str] = None
-    status: TaskStatus = TaskStatus.TODO
-    priority: TaskPriority = TaskPriority.LOW
+    status: roles.TaskStatus = roles.TaskStatus.TODO
+    priority: roles.TaskPriority = roles.TaskPriority.LOW
     due_date: date | None = None
     assignee_id: int | None = None
 
@@ -48,4 +49,14 @@ class TaskCommentCreate(BaseModel):
 
     task_id: int
     body:str
+
+class SearchResponse(BaseModel):
     
+    search: Optional[str] = None
+    status: Optional[roles.TaskStatus] = None
+    priority:Optional[roles.TaskPriority] = None
+    project_id:Optional[int] = None
+    assignee_id:Optional[int] = None
+    deadline_from:Optional[datetime] = None
+    deadline_to:Optional[datetime] = None
+

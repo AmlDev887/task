@@ -569,3 +569,33 @@ async def task_attech(id: int,
     await db.refresh(attachment)
 
     return {"message":"Файл загружен"}
+
+
+#-------------------------Работа файлами фильтр и пагинация файлов----------------------------------
+
+
+@router.get("/search")
+async def serarch_task(tasks:tasks.SearchResponse,
+                       db: AsyncSession = Depends(get_db)):
+    """Фильтрация пагианция поиска данных"""
+    
+    query = select(Tasks)
+    if tasks.search is not None:
+        query = query.where(Tasks.title.ilike(f"%{tasks.search}%"))
+
+    if tasks.status is not None:
+        query = query.where(Tasks.status == tasks.status)
+
+    if tasks.priority is not None:
+        query = query.where(Tasks.priority == tasks.priority)
+
+    if tasks.project_id is not None:
+        query = query.where(Tasks.project_id == tasks.project_id)
+
+    if tasks.assignee_id is not None:
+        query = query.where(Tasks.assignee_id == tasks.assignee_id)
+
+    if tasks.deadline_from is not None:
+         query = query.where(Tasks)
+    if tasks.deadline_to is not None:
+         query = query.where(Tasks.due_date == tasks.deadline_from)
