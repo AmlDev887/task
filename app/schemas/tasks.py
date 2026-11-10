@@ -59,4 +59,19 @@ class SearchResponse(BaseModel):
     assignee_id:Optional[int] = None
     deadline_from:Optional[datetime] = None
     deadline_to:Optional[datetime] = None
+    sort_by: Optional[roles.TaskSortBy] = None
+    order: Optional[roles.SortOrder] = roles.SortOrder.ASC
 
+class Page(BaseModel):
+    page: int = Field(1, ge=1)
+    size: int = Field(20, ge=1, le=100)
+
+
+class PagedTasks(BaseModel):
+    items: list[TaskResponse]  # Сюда попадет список задач (по твоей схеме TaskResponse)
+    total: int                 # Всего найдено задач в базе
+    page: int                  # Текущая страница
+    size: int                  # Размер страницы
+    pages: int                 # Всего страниц
+    
+    model_config = ConfigDict(from_attributes=True)

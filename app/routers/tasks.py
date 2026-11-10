@@ -1,10 +1,10 @@
-from fastapi import Depends, APIRouter, HTTPException, status, File, UploadFile
+from fastapi import Depends, APIRouter, HTTPException, status, File, UploadFile, Query
 from app.database.db import get_db
 from app.schemas import tasks, history, comments
 from app.models.models import Comments, ProjectMembers, Tasks, History, TaskTags, Attachments, Users
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import security
-from sqlalchemy import select
+from sqlalchemy import select, func
 from typing import List,Annotated
 from app.schemas import roles
 from pathlib import Path
@@ -572,16 +572,20 @@ async def task_attech(id: int,
 
 
 #-------------------------Работа файлами фильтр и пагинация файлов----------------------------------
+SORTABLE = {
+    "created_at": tasks.Task.created_at,
+    "due_date": tasks.Task.due_date,
+    "priority": tasks.Task.priority,
+    "title": tasks.Task.title,
+}
 
-
-@router.get("/search")
-async def serarch_task(tasks:tasks.SearchResponse,
-                       db: AsyncSession = Depends(get_db)):
+def create_schem(tasks: str):
     """Фильтрация пагианция поиска данных"""
     
     query = select(Tasks)
     if tasks.search is not None:
-        query = query.where(Tasks.title.ilike(f"%{tasks.search}%"))
+        safe = tasks.search.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
+        query = query.where(Tasks.title.ilike(f"%{safe}%", escape = "\\"))
 
     if tasks.status is not None:
         query = query.where(Tasks.status == tasks.status)
@@ -596,6 +600,57 @@ async def serarch_task(tasks:tasks.SearchResponse,
         query = query.where(Tasks.assignee_id == tasks.assignee_id)
 
     if tasks.deadline_from is not None:
-         query = query.where(Tasks)
+        query = query.where(Tasks.due_date >= tasks.deadline_from)
+
     if tasks.deadline_to is not None:
-         query = query.where(Tasks.due_date == tasks.deadline_from)
+        query = query.where(Tasks.due_date <= tasks.deadline_to)
+
+    return query
+
+def sort_scanner(stmt, sort: str):
+    """проверяем и создаем нужный запрос для поиска по определнному полю"""
+    for plan in filter(None,(s.strip() for s in sort.split(","))):
+        desc = plan.startswith("-")
+        juck = SORTABLE.get(plan.lstrip("-"))
+
+        if juck is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail = f"Нельзя сортировать по {plan}"
+            )
+        stmt = stmt.order_by(
+             juck.desc().nulls_last() if desc else juck.asc().nulls_last()
+        )
+    return stmt.order_by(tasks.Task.id)
+
+async def search_tasks(gon: tasks.SearchResponse,
+                 sort:str, 
+                 p: tasks.Page,
+                 db: AsyncSession = Depends(get_db) ):
+    """Главная функция для работы поиска,сортировки и фильтрации"""
+
+    base = create_schem(gon)
+    stmt = await db.scalar(select((func.count()).select_from(base.order_by(None).subquery())))
+
+    result = (
+         sort_scanner(base, sort).limit(p.size).offset((p.page - 1)*p.size)
+    )
+    rows = await db.scalars(result).all()
+
+
+    return tasks.PagedTasks(
+        items=rows,
+        total=stmt,
+        page=p.page,
+        size=p.size,
+        pages=-(-stmt // p.size),  
+    )
+
+@router.get("/search", response_model=tasks.PagedTasks)
+async def list_tasks(
+     f: Annotated[tasks.SearchResponse, Query()],
+     p: Annotated[tasks.Page, Query()],
+     sort: str = "-created_at",  
+     db: AsyncSession = Depends(get_db)
+):
+    return await search_tasks(f, sort, p, db)

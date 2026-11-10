@@ -25,4 +25,13 @@ class ProjectRole(Enum):
     OWNER = "owner"
     EDITOR = "editor"
     VIEWER = "viewer"
-    
+
+class TaskSortBy(Enum):
+    TITLE = "title"
+    CREATED_AT = "created_at"
+    DUE_DATE = "due_date"
+    PRIORITY = "priority"
+
+class SortOrder(str, Enum):
+    ASC = "asc"
+    DESC = "desc"
