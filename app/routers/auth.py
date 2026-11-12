@@ -85,7 +85,17 @@ async def add(new_user: UserLogin, db: AsyncSession = Depends(get_db)):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail = 'Не удалось сохранить'
         )
-    get_email_task.delay(new_user,"код для подтверждения email",code)
+    contex_data = {
+        "username":new_user.full_name,
+        "код подтверждения":code,
+        "button_label":"Подтвердить почту"
+    } 
+    get_email_task.delay(
+                        new_user, 
+                        "код для подтверждения email", 
+                        contex_data, 
+                        template_name = "app/services/confirm.html"
+                         )
     return answer
 
 @router.get("/verify")
@@ -119,6 +129,9 @@ async def email_verify(verify:auth.EmailVerify,db: AsyncSession = Depends(get_db
     await db.commit()
     await db.refresh(user) 
 
+    templates_map = {
+
+    }
     return {"message": "Email успешно подтверждён"}
 
 @router.post("/login")

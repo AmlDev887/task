@@ -14,6 +14,8 @@ from celery import Celery
 import uuid
 import re
 from app.services import email
+from fastapi.templating import Jinja2Templates
+
 router = APIRouter(
     prefix="/tasks",
     tags=["tasks"]
@@ -24,12 +26,30 @@ celery = Celery(
      broker="redis://localhost:6379/0",
     
 )
+templates = Jinja2Templates(directory="templates")
+
 @celery.task(bind=True, max_retries=5)
-def get_email_task(self, recipient: str, subject: str, body: str):
+def get_email_task(self, 
+                   recipient: str,
+                   subject: str,
+                   context_data: dict = None,
+                   body: str = None, 
+                   template_name : str= None):
     """Отправка сообщения в email"""
+        
     try:
-        email.send_email(recipient, subject, body)
+        if template_name is not None:
+                template = templates.get_template(template_name)
+                email_body = template.render(context_data or {})
+                content_type = "html"
+        else:
+                email_body = body
+                content_type = "plain"
+
+        email.send_email(recipient, subject, email_body, content_type=content_type)
+        
         return {"message": "Отправлено сообщение"}
+    
     except Exception as exc:
         raise self.retry(exc=exc, countdown=10)
 
