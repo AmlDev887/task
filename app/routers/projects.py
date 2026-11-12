@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from app.schemas import roles
 from datetime import date
+from tasks import get_email_task
 router = APIRouter(prefix="/projects",
                    tags=["projects"])
 
@@ -304,7 +305,26 @@ async def create_task(id:int,
     db.add(task)
     await db.commit()
     await db.refresh(task)
-    
+
+    if update.assignee_id:
+        assignee_stmt = select(Users).where(Users.id == update.assignee_id)
+        assignee_result = await db.execute(assignee_stmt)
+        assignee_user = assignee_result.scalars().one_or_none()
+
+        if assignee_user:
+            get_email_task.delay(
+                recipient=assignee_user.email,
+                subject=f"Новая задача в проекте: {update.title}",
+                template_name="email/task_notification.html",
+                context_data={
+                    "username": assignee_user.username,
+                    "task_title": update.title,
+                    "task_description": update.description,
+                    "priority": update.priority,
+                    "due_date": str(update.due_date),
+                    "action_url": f"https://my-app.com/projects/{id}/tasks/{task.id}"
+                }
+            )
     return {"message":"Таск создан"}
 
 @router.get("/{id}/tasks",response_model=List[projects.ProjectTaskResponse])

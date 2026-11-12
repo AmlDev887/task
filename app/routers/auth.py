@@ -232,9 +232,17 @@ async def forgot_password(email:auth.EmailForgot, db: AsyncSession = Depends(get
     
     code = secrets.token_urlsafe(32)
     await redis.redis_async.set(name = f"reset:{code}",value = email.email, ex = 3600)
-    get_email_task.delay(email.email,"Код для восстновлаения пароля",code)
     
-    return {"message":"Код подтверждения отправлен"}
+    get_email_task.delay(recipient=email.email,
+        subject="Восстановление пароля",
+        template_name="app/services/confirm.html",
+        context_data={
+            "intro_text": f"Ваш код для сброса пароля: {code}",
+            "action_url": "https://my-app.com/reset-password", # Ссылка на страницу ввода кода
+            "button_label": "Сбросить пароль"
+        })
+    
+    return {"message": "Инструкция по сбросу пароля отправлена на почту"}
 
 @router.post("/reset-password")
 async def reset_password(reset:auth.EmailReset,db: AsyncSession = Depends(get_db)):
@@ -267,5 +275,6 @@ async def reset_password(reset:auth.EmailReset,db: AsyncSession = Depends(get_db
     await db.commit()
     await db.refresh(forgot)
     await redis.redis_async.delete(name=f"reset:{reset.code}")
+
     
     return {"message":"Код успешно изменен"}
