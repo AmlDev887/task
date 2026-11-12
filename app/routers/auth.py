@@ -9,10 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import security
 from app.core.config import settings
 from sqlalchemy import select
-from app.workers.celery_app import get_email_code
 from jwt.exceptions import InvalidTokenError, PyJWTError
+from app.routers.tasks import get_email_task
 from app.core import redis
 from typing import Annotated
+from app.routers.tasks import get_email_task
 import secrets
 import hashlib
 import jwt
@@ -84,7 +85,7 @@ async def add(new_user: UserLogin, db: AsyncSession = Depends(get_db)):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail = 'Не удалось сохранить'
         )
-    get_email_code.delay(new_user.email,code)
+    get_email_task.delay(new_user,"код для подтверждения email",code)
     return answer
 
 @router.get("/verify")
@@ -218,7 +219,7 @@ async def forgot_password(email:auth.EmailForgot, db: AsyncSession = Depends(get
     
     code = secrets.token_urlsafe(32)
     await redis.redis_async.set(name = f"reset:{code}",value = email.email, ex = 3600)
-    get_email_code.delay(email.email,code)
+    get_email_task.delay(email.email,"Код для восстновлаения пароля",code)
     
     return {"message":"Код подтверждения отправлен"}
 

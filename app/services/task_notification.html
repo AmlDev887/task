@@ -1,0 +1,18 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+    <h2>Привет, {{ username }}!</h2>
+    <p>{{ intro_text }}</p>
+
+    <div class="task-box">
+        <h3 style="margin: 0 0 10px 0;">{{ task.title }}</h3>
+        <p style="margin: 0; font-size: 14px; color: #5e6c84;">
+            Статус: <span class="highlight">{{ task.status }}</span><br>
+            Срок сдачи: <strong>{{ task.due_date }}</strong>
+        </p>
+    </div>
+
+    <p style="text-align: center;">
+        <a href="{{ action_url }}" class="btn">{{ button_text | default("Посмотреть задачу") }}</a>
+    </p>
+{% endblock %}

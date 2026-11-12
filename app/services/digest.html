@@ -1,0 +1,22 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+    <h2>Привет, {{ username }}!</h2>
+    <p>Вот сводка ваших актуальных задач на текущий момент:</p>
+
+    <ul style="padding-left: 20px; line-height: 1.8;">
+    {% for task in tasks %}
+        <li>
+            <a href="{{ task.url }}" style="color: #0052cc; text-decoration: none; font-weight: bold;">{{ task.title }}</a> 
+            — статус: <span class="highlight">{{ task.status }}</span> 
+            (Дедлайн: {{ task.due_date }})
+        </li>
+    {% else %}
+        <li>Ура! На текущий момент нет активных задач. Отдыхай!</li>
+    {% endfor %}
+    </ul>
+
+    <p style="text-align: center;">
+        <a href="{{ dashboard_url }}" class="btn">Перейти в панель управления</a>
+    </p>
+{% endblock %}

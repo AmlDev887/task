@@ -1,0 +1,14 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+    <h2>Привет, {{ username }}!</h2>
+    <p>{{ intro_text }}</p>
+    
+    <p style="text-align: center;">
+        <a href="{{ action_url }}" class="btn">{{ button_label }}</a>
+    </p>
+    
+    <p style="margin-top: 30px; font-size: 14px; color: #6b778c;">
+        Если вы не запрашивали это действие, просто проигнорируйте письмо. Ссылка действительна 24 часа.
+    </p>
+{% endblock %}

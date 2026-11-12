@@ -10,14 +10,28 @@ from app.schemas import roles
 from pathlib import Path
 from datetime import datetime, timezone
 from sqlalchemy.orm import joinedload, selectinload
-from workers.celery_app import get_email_user
+from celery import Celery
 import uuid
 import re
-
+from app.services import email
 router = APIRouter(
     prefix="/tasks",
     tags=["tasks"]
 )
+
+celery = Celery(
+     "task",
+     broker="redis://localhost:6379/0",
+    
+)
+@celery.task(bind=True, max_retries=5)
+def get_email_task(self, recipient: str, subject: str, body: str):
+    """Отправка сообщения в email"""
+    try:
+        email.send_email(recipient, subject, body)
+        return {"message": "Отправлено сообщение"}
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=10)
 
 @router.get("/{id}",response_model=tasks.TaskResponse)
 async def all_task(id: int, 
@@ -137,7 +151,7 @@ async def update_task(id: int,
 
     await db.commit()
     await db.refresh(answer)       
-
+    
     return answer
 
 @router.delete("/{id}")
@@ -361,7 +375,11 @@ async def creat_coments(
     EMAIL_PATTERN = r"(?i)(?<![\w.+-])[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+"
     email = re.findall(EMAIL_PATTERN, comment.body)
     for e in email:
-        get_email_user.delay(ronaldo.email, e, comment.body)
+        email.get_email_user.delay(
+        ronaldo.email,
+        e,
+        comment.body
+    )
     
     db.add(comments)
     await db.commit()
