@@ -108,12 +108,13 @@ async def project_update(id:int,
                  )
     for_iterate = update.model_dump(exclude_unset=True)
 
-    for key,value in  for_iterate.items():
+    for key,value in for_iterate.items():
          setattr(answer,key,value)
 
     await db.commit()
     await db.refresh(answer)
 
+    
     return {"message":"изменения применены"}
 
 @router.delete("/{id}",status_code=status.HTTP_204_NO_CONTENT)

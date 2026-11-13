@@ -118,6 +118,9 @@ async def update_task(id: int,
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail = "Таск не найден"
             )
+    old_assignee_id = answer.assignee_id
+    old_status = answer.status
+    
     if task.assignee_id is not None:
         pro_id = answer.project_id
         georg_ass = select(ProjectMembers).where(ProjectMembers.project_id == pro_id,
@@ -172,7 +175,46 @@ async def update_task(id: int,
     await db.commit()
     await db.refresh(answer)       
     
+    if task.assignee_id is not None and task.assignee_id != old_assignee_id:
+        user_stmt = select(Users).where(Users.id == task.assignee_id)
+        user_res = await db.execute(user_stmt)
+        assignee_user = user_res.scalars().one_or_none()
+        
+        if assignee_user:
+            get_email_task.delay(
+                recipient=assignee_user.email,
+                subject=f"Вам назначена задача: {answer.title}",
+                template_name="app/services/task_notification.html",
+                context_data={
+                    "username": assignee_user.username,
+                    "task_title": answer.title,
+                    "intro_text": "Вам была назначена новая задача.",
+                    "action_url": f"https://my-app.com/projects/{answer.project_id}/tasks/{answer.id}"
+                }
+            )
+
+    if "status" in hunter and hunter["status"] != old_status:
+    
+        if answer.creator_id and answer.creator_id != user_id:
+            creator_stmt = select(Users).where(Users.id == answer.creator_id)
+            creator_res = await db.execute(creator_stmt)
+            creator_user = creator_res.scalars().one_or_none()
+            
+            if creator_user:
+                get_email_task.delay(
+                    recipient=creator_user.email,
+                    subject=f"Статус задачи изменен: {answer.title}",
+                    template_name="app/services/task_notification.html",
+                    context_data={
+                        "username": creator_user.username,
+                        "task_title": answer.title,
+                        "intro_text": f"Статус задачи изменился на: <b>{answer.status}</b>",
+                        "action_url": f"https://my-app.com/projects/{answer.project_id}/tasks/{answer.id}"
+                    }
+                )
+
     return answer
+
 
 @router.delete("/{id}")
 async def task_delete(id: int, 

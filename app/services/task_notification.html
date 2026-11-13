@@ -2,17 +2,16 @@
 
 {% block content %}
     <h2>Привет, {{ username }}!</h2>
-    <p>{{ intro_text }}</p>
-
-    <div class="task-box">
-        <h3 style="margin: 0 0 10px 0;">{{ task.title }}</h3>
-        <p style="margin: 0; font-size: 14px; color: #5e6c84;">
-            Статус: <span class="highlight">{{ task.status }}</span><br>
-            Срок сдачи: <strong>{{ task.due_date }}</strong>
-        </p>
+    <p>Вам была назначена новая задача.</p>
+    
+    <div style="background-color: #f4f5f7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+        <h3 style="margin-top: 0; color: #172b4d;">{{ task_title }}</h3>
+        <p style="color: #5e6c84;">{{ task_description }}</p>
+        <p style="margin-bottom: 0;"><strong>Приоритет:</strong> {{ priority }}</p>
+        <p style="margin-bottom: 0;"><strong>Срок выполнения:</strong> {{ due_date }}</p>
     </div>
-
+    
     <p style="text-align: center;">
-        <a href="{{ action_url }}" class="btn">{{ button_text | default("Посмотреть задачу") }}</a>
+        <a href="{{ action_url }}" class="btn">Посмотреть задачу</a>
     </p>
 {% endblock %}
