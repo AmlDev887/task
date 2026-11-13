@@ -11,10 +11,12 @@ from pathlib import Path
 from datetime import datetime, timezone
 from sqlalchemy.orm import joinedload, selectinload
 from celery import Celery
+from app.database.db import SessionLocal
 import uuid
 import re
 from app.services import email
 from fastapi.templating import Jinja2Templates
+from celery.schedules import crontab
 
 router = APIRouter(
     prefix="/tasks",
@@ -52,6 +54,49 @@ def get_email_task(self,
     
     except Exception as exc:
         raise self.retry(exc=exc, countdown=10)
+
+@celery.task()
+async def get_status_task():
+    async with SessionLocal() as db:
+        stmt = select(Users).where(Users.is_verified == True, Users.is_active == True)
+        result = await db.execute(stmt)
+        answer = result.scalars().all()
+
+        for user in answer:
+            hunter = select(Tasks).where(Tasks.assignee_id == user.id, Tasks.status != "DONE")
+            gummy = await db.execute(hunter)
+            unit = gummy.scalars().all()
+
+            if not unit:
+                continue
+
+            tasks_data = [
+                {
+                    "title": task.title, 
+                    "due_date": task.due_date.strftime("%d.%m.%Y %H:%M") if task.due_date else "Без срока", 
+                    "status": task.status,  
+                    "color": "#e74c3c" if (task.due_date and task.due_date < datetime.utcnow()) else "#555"
+                }
+                for task in unit
+            ]
+
+            get_email_task.delay(
+                recipient=user.email,
+                subject="Дневной дайджест тасков",
+                template_name="app/services/daily_digest.html",
+                context_data={
+                    "username": user.username,
+                    "tasks": tasks_data
+                }
+            )
+celery.conf.timezone = "Asia/Tashkent"
+
+celery.conf.beat_schedule = {
+     "send-daily-digest-every-morning":{
+          "task":"app.routers.tasks.get_status_task",
+          "schedule":crontab(hour=9, minute=0),
+     }
+}
 
 @router.get("/{id}",response_model=tasks.TaskResponse)
 async def all_task(id: int, 

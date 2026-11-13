@@ -46,6 +46,8 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class UserUpdate(BaseModel):
+    old_password = str | None = None
+    new_password = str | None = None
     email:EmailStr | None = None
     full_name:str | None = None
     

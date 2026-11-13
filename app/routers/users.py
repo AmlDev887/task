@@ -13,7 +13,7 @@ router = APIRouter(prefix="/users",
 
 @router.get("/me",response_model=users.UserResponse)
 async def user_info(user_id: int = Depends(security.scan_token),db: AsyncSession = Depends(get_db)):
-    """Вывожим пользователя"""
+    """Выводим пользователя"""
     
     stmt = select(models.Users).options(joinedload(models.Users.project)).where(models.Users.id == user_id)
     result = await db.execute(stmt)
@@ -33,8 +33,11 @@ async def user_info(user_id: int = Depends(security.scan_token),db: AsyncSession
         )
     return answer
 
+
 @router.patch("/me")
-async def user_update(update: users.UserUpdate,user_id: int = Depends(security.scan_token),db: AsyncSession = Depends(get_db)):
+async def user_update(update: users.UserUpdate,
+                      user_id: int = Depends(security.scan_token),
+                      db: AsyncSession = Depends(get_db)):
     """Ввод изменений на профиль пользователя"""
     
     stmt = select(models.Users).where(models.Users.id == user_id)
@@ -46,11 +49,15 @@ async def user_update(update: users.UserUpdate,user_id: int = Depends(security.s
             status_code = status.HTTP_404_NOT_FOUND,
             detail = "Пользователь не найден"
         )
-
-    user_up = update.model_dump(exclude_unset = True)
-    for key,value in user_up.items():
-        setattr(answer,key,value)
-    
+    if update.old_password and update.new_password:
+        if not security.verify_password(update.old_password,answer.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail = "Неверный пароль"
+        )
+    answer.hashed_password = security.heshing_password(update.new_password) if update.old_password and update.new_password else answer.hashed_password
+    answer.email = update.email if update.email else answer.email
+    answer.full_name = update.full_name if update.full_name else answer.full_name
 
     await db.commit()
     await db.refresh(answer)

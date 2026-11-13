@@ -10,6 +10,7 @@ from typing import List
 from app.schemas import roles
 from datetime import date
 from tasks import get_email_task
+
 router = APIRouter(prefix="/projects",
                    tags=["projects"])
 
