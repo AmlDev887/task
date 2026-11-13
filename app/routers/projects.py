@@ -158,34 +158,70 @@ async def member_user(id:int,
                       user_id:int = Depends(security.scan_token),
                       db: AsyncSession = Depends(get_db)):
     """Добавление пользователя в проект"""
-    user = select(ProjectMembers).options(
-         joinedload(ProjectMembers.project),
-         joinedload(ProjectMembers.user)
+    user_query = select(ProjectMembers).options(
+        joinedload(ProjectMembers.project),
+        joinedload(ProjectMembers.user)
     ).where(ProjectMembers.user_id == user_id, ProjectMembers.project_id == id)
     
-    runner = await db.execute(user)
+    runner = await db.execute(user_query)
     budy = runner.scalars().one_or_none()
+    
     if budy is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Проект не найден"
+            detail="Проект не найден или вы не участник"
         )
     if budy.role != roles.ProjectRole.OWNER:
-            raise HTTPException(
-                 status_code=status.HTTP_403_FORBIDDEN,
-                 detail = "Доступ не разрешен вы не (Admin)"
-            )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Доступ не разрешен: вы не владелец (Owner)"
+        )
     
+    target_user_id = int(member.user_id)
+
+    target_user_stmt = select(Users).where(Users.id == target_user_id)
+    target_user_res = await db.execute(target_user_stmt)
+    target_user = target_user_res.scalars().one_or_none()
+
+    if target_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Пользователь для добавления не найден"
+        )
+
+    existing_member_stmt = select(ProjectMembers).where(
+        ProjectMembers.project_id == id,
+        ProjectMembers.user_id == target_user_id
+    )
+    existing_res = await db.execute(existing_member_stmt)
+    if existing_res.scalars().one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Пользователь уже состоит в этом проекте"
+        )
+
     new_member = ProjectMembers(
-    project_id=id,
-    user_id=int(member.user_id),
-    role=member.role
-)
+        project_id=id,
+        user_id=target_user_id,
+        role=member.role
+    )
 
     db.add(new_member)
     await db.commit()
     await db.refresh(new_member)
-
+    
+    get_email_task.delay(
+        
+        recipient=target_user.email,
+        subject="Вас добавили в проект!",
+        template_name="email/task_notification.html",
+        context_data={
+            "username": target_user.username,
+            "task_title": budy.project.title if budy.project else "Рабочий проект",
+            "intro_text": f"Вы были добавлены в проект с ролью: <b>{member.role}</b>",
+            "action_url": f"https://my-app.com/projects/{id}"
+        }
+    )
     return {"message": "Пользователь добавлен в проект"}
 
 @router.delete("/{id}/members")
