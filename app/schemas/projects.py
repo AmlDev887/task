@@ -62,3 +62,6 @@ class ProjectUpdate(BaseModel):
     name: str | None = Field(min_length=1, max_length=50)
     description: str | None = Field(default=None, max_length=225)
 
+class EditRole(BaseModel):
+
+    role: str = roles.ProjectRole

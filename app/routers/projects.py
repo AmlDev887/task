@@ -225,6 +225,47 @@ async def member_user(id:int,
     )
     return {"message": "Пользователь добавлен в проект"}
 
+@router.patch("/{id}/members/{member_id}")
+async def change_member_role(id: int,
+                             member_id: int,
+                             edit:projects.EditRole,
+                             author_id: int = Depends(security.scan_token),
+                             db: AsyncSession = Depends(get_db)):
+    """Смена роли пользователя"""
+    user = select(ProjectMembers).options(
+                joinedload(ProjectMembers.project),
+                joinedload(ProjectMembers.user)
+            ).where(ProjectMembers.user_id == author_id, ProjectMembers.project_id == id)
+    
+    result = await db.execute(user)
+    answer = result.scalars().one_or_none()
+    if answer is None:
+        raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Проект не найден или вы не участник"
+                )
+    if answer.role != roles.ProjectRole.OWNER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail = "Доступ запрещен"
+        )
+    stmt = await db.execute(select(ProjectMembers).options(
+                joinedload(ProjectMembers.project),
+                joinedload(ProjectMembers.user)
+            ).where(ProjectMembers.user_id == member_id, ProjectMembers.project_id == id))
+    look = stmt.scalars().one_or_none()
+    
+    if look is None:
+            raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Проект не найден или вы не участник"
+                    )
+    look.role = edit.role
+    await db.commit()
+    await db.refresh(look)
+
+    return {"message": "Роль участника успешно изменена"}
+
 @router.delete("/{id}/members")
 async def member_user(id:int,
                       owner:projects.ProjectOwnerDelete,
