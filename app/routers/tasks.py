@@ -16,6 +16,7 @@ import uuid
 import re
 from celery.schedules import crontab
 from app.workers.celery_app import celery, get_email_task
+import asyncio
 
 router = APIRouter(
     prefix="/tasks",
@@ -24,39 +25,42 @@ router = APIRouter(
 
 
 @celery.task()
-async def get_status_task():
-    async with SessionLocal() as db:
-        stmt = select(Users).where(Users.is_verified == True, Users.is_active == True)
-        result = await db.execute(stmt)
-        answer = result.scalars().all()
+def get_status_task():
+    async def _run():
+        async with SessionLocal() as db:
+            stmt = select(Users).where(Users.is_verified == True, Users.is_active == True)
+            result = await db.execute(stmt)
+            answer = result.scalars().all()
 
-        for user in answer:
-            hunter = select(Tasks).where(Tasks.assignee_id == user.id, Tasks.status != "DONE")
-            gummy = await db.execute(hunter)
-            unit = gummy.scalars().all()
+            for user in answer:
+                hunter = select(Tasks).where(Tasks.assignee_id == user.id, Tasks.status != "DONE")
+                gummy = await db.execute(hunter)
+                unit = gummy.scalars().all()
 
-            if not unit:
-                continue
+                if not unit:
+                    continue
 
-            tasks_data = [
-                {
-                    "title": task.title, 
-                    "due_date": task.due_date.strftime("%d.%m.%Y %H:%M") if task.due_date else "Без срока", 
-                    "status": task.status,  
-                    "color": "#e74c3c" if (task.due_date and task.due_date < datetime.utcnow()) else "#555"
-                }
-                for task in unit
-            ]
+                tasks_data = [
+                    {
+                        "title": task.title, 
+                        "due_date": task.due_date.strftime("%d.%m.%Y %H:%M") if task.due_date else "Без срока", 
+                        "status": task.status,  
+                        "color": "#e74c3c" if (task.due_date and task.due_date < datetime.now(timezone.utc)) else "#555"
+                    }
+                    for task in unit
+                ]
 
-            get_email_task.delay(
-                recipient=user.email,
-                subject="Дневной дайджест тасков",
-                template_name="app/services/daily_digest.html",
-                context_data={
-                    "username": user.username,
-                    "tasks": tasks_data
-                }
-            )
+                get_email_task.delay(
+                    recipient=user.email,
+                    subject="Дневной дайджест тасков",
+                    template_name="app/services/daily_digest.html",
+                    context_data={
+                        "username": user.username,
+                        "tasks": tasks_data
+                    }
+                )
+    asyncio.run(_run())
+
 celery.conf.timezone = "Asia/Tashkent"
 
 celery.conf.beat_schedule = {
@@ -65,6 +69,7 @@ celery.conf.beat_schedule = {
           "schedule":crontab(hour=9, minute=0),
      }
 }
+
 @router.get("/search", response_model=tasks.PagedTasks)
 async def list_tasks(
      f: Annotated[tasks.SearchResponse, Query()],
@@ -73,7 +78,7 @@ async def list_tasks(
      db: AsyncSession = Depends(get_db)
 ):
     return await search_tasks(f, sort, p, db)
-
+    
 @router.get("/{id}",response_model=tasks.TaskResponse)
 async def all_task(id: int, 
                    user_id: int = Depends(security.scan_token),
@@ -169,25 +174,39 @@ async def update_task(id: int,
             status_code = status.HTTP_403_FORBIDDEN,
             detail = "Вам доступ не разрешен"
         )
+    status = {
+        "todo":1,
+        "in_progress":2,
+        "review":3,
+        "done":4,
+        "cancelled":5
+    }
     if task_status_one != roles.TaskStatus.DONE and task.status == roles.TaskStatus.DONE:
          answer.completed_at = datetime.now(timezone.utc)
 
+    if "status" in task.model_dump(exclude_unset=True):
+        new_status = task.status
+    
+    if status[new_status] < status[answer.status]:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Нельзя менять статус в таком порядке"
+        )
     
     hunter = task.model_dump(exclude_unset=True)
     for key,new_value in hunter.items():
         old_value = getattr(answer,key,None)
         if old_value != new_value:
             history_update = History(
-                use_id = user_id,
+                user_id = user_id,
                 task_id = id,
                 field = key,
-                old_value = old_value if old_value is not None else None,
-                new_value = new_value  if new_value is not None else None
+                old_val_str = old_value.value if hasattr(old_value, "value") else str(old_value) if old_value is not None else None,
+                new_val_str = new_value.value if hasattr(new_value, "value") else str(new_value) if new_value is not None else None
             )
             db.add(history_update)
             setattr(answer,key,new_value)
 
-    if answer is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail = "Пользователь не найден"
@@ -271,7 +290,7 @@ async def task_delete(id: int,
     answer.is_deleted = True
     answer.deleted_at = datetime.now(timezone.utc)
     history_update = History(
-                    use_id = creator_id,
+                    user_id = creator_id,
                     task_id = id,
                     field = "is_deleted",
                     old_value = "False",
@@ -310,8 +329,8 @@ async def task_restore(id: int,
     rfag = wait.scalars().one_or_none()
     if rfag is None:
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail = "Нужного проекта нет"
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail = "Участник не найден в проекте"
                 )
     if rfag.role not in (roles.ProjectRole.EDITOR,
                      roles.ProjectRole.OWNER):
@@ -324,7 +343,7 @@ async def task_restore(id: int,
     answer.is_deleted = False
     answer.deleted_at = None
     history_update = History(
-                use_id = creator_id,
+                user_id = creator_id,
                 task_id = id,
                 field = "is_deleted",
                 old_value = "True",
@@ -458,7 +477,7 @@ async def creat_coments(
     EMAIL_PATTERN = r"(?i)(?<![\w.+-])[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+"
     email = re.findall(EMAIL_PATTERN, comment.body)
     for e in email:
-        get_email_task.delay(
+        email.get_email_user.delay(
         ronaldo.email,
         e,
         comment.body
@@ -680,10 +699,10 @@ SORTABLE = {
     "title": Tasks.title,
 }
 
-def create_schem(tasks: str):
+def create_schem(tasks):
     """Фильтрация пагианция поиска данных"""
     
-    query = select(Tasks)
+    query = select(Tasks).where(Tasks.is_deleted == False)
     if tasks.search is not None:
         safe = tasks.search.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
         query = query.where(Tasks.title.ilike(f"%{safe}%", escape = "\\"))
@@ -708,8 +727,11 @@ def create_schem(tasks: str):
 
     return query
 
-def sort_scanner(stmt, sort: str):
+def sort_scanner(stmt, sort: str = "created_at"):
     """проверяем и создаем нужный запрос для поиска по определнному полю"""
+    if not sort:
+        return stmt.order_by(Tasks.id)
+    
     for plan in filter(None,(s.strip() for s in sort.split(","))):
         desc = plan.startswith("-")
         juck = SORTABLE.get(plan.lstrip("-"))
@@ -722,7 +744,7 @@ def sort_scanner(stmt, sort: str):
         stmt = stmt.order_by(
              juck.desc().nulls_last() if desc else juck.asc().nulls_last()
         )
-    return stmt.order_by(tasks.Task.id)
+    return stmt.order_by(Tasks.id)
 
 async def search_tasks(gon: tasks.SearchResponse,
                  sort:str, 
@@ -731,20 +753,20 @@ async def search_tasks(gon: tasks.SearchResponse,
     """Главная функция для работы поиска,сортировки и фильтрации"""
 
     base = create_schem(gon)
-    stmt = await db.scalar(select((func.count()).select_from(base.order_by(None).subquery())))
+    count_stmt = select(func.count(Tasks.id)).select_from(base.order_by(None).subquery())
+    total_count = await db.scalar(count_stmt) or 0
 
-    result = (
-         sort_scanner(base, sort).limit(p.size).offset((p.page - 1)*p.size)
-    )
-    rows = await db.scalars(result).all()
+    result_stmt = sort_scanner(base, sort).limit(p.size).offset((p.page - 1) * p.size)
+    rows = (await db.scalars(result_stmt)).all()
 
 
-    return tasks.PagedTasks(
+    pages_count = -(-total_count // p.size) if p.size > 0 and total_count > 0 else 0
+
+        return tasks.PagedTasks(
         items=rows,
-        total=stmt,
+        total=total_count,
         page=p.page,
         size=p.size,
-        pages=-(-stmt // p.size),  
+        pages=pages_count,  
     )
-
 

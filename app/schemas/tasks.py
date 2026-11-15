@@ -36,6 +36,7 @@ class TaskResponse(BaseModel):
 
 class TaskUpdate(BaseModel):
 
+    version: int
     assignee_id:Optional[int] = None
     title: Optional[str] = None
     description: Optional[str] = None

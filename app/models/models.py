@@ -80,7 +80,7 @@ class Tasks(Base, TimestampMixin):
     history:Mapped[List["History"]] = relationship(back_populates="task")
     attachments:Mapped[List["Attachments"]] = relationship(back_populates="task")
 
-    __mapped_args__ = {"version_id_col":version}
+    __mapper_args__ = {"version_id_col":version}
 
 class Attachments(Base, TimestampMixin):
     __tablename__ = "attachments"
@@ -130,7 +130,7 @@ class Comments(Base, TimestampMixin):
 class History(Base, TimestampMixin):
     __tablename__ = "task_history"
     id:Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    use_id:Mapped[int] = mapped_column(ForeignKey("users.id",ondelete = "CASCADE"))
+    user_id:Mapped[int] = mapped_column(ForeignKey("users.id",ondelete = "CASCADE"))
     task_id:Mapped[int] = mapped_column(ForeignKey("tasks.id",ondelete = "CASCADE"))
     field:Mapped[str] = mapped_column(String(60)) 
     old_value:Mapped[Optional[str]] = mapped_column(String(100))
