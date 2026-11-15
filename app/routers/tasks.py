@@ -14,46 +14,14 @@ from celery import Celery
 from app.database.db import SessionLocal
 import uuid
 import re
-from app.services import email
-from fastapi.templating import Jinja2Templates
 from celery.schedules import crontab
+from app.workers.celery_app import celery, get_email_task
 
 router = APIRouter(
     prefix="/tasks",
     tags=["tasks"]
 )
 
-celery = Celery(
-     "task",
-     broker="redis://localhost:6379/0",
-    
-)
-templates = Jinja2Templates(directory="templates")
-
-@celery.task(bind=True, max_retries=5)
-def get_email_task(self, 
-                   recipient: str,
-                   subject: str,
-                   context_data: dict = None,
-                   body: str = None, 
-                   template_name : str= None):
-    """Отправка сообщения в email"""
-        
-    try:
-        if template_name is not None:
-                template = templates.get_template(template_name)
-                email_body = template.render(context_data or {})
-                content_type = "html"
-        else:
-                email_body = body
-                content_type = "plain"
-
-        email.send_email(recipient, subject, email_body, content_type=content_type)
-        
-        return {"message": "Отправлено сообщение"}
-    
-    except Exception as exc:
-        raise self.retry(exc=exc, countdown=10)
 
 @celery.task()
 async def get_status_task():
@@ -97,6 +65,14 @@ celery.conf.beat_schedule = {
           "schedule":crontab(hour=9, minute=0),
      }
 }
+@router.get("/search", response_model=tasks.PagedTasks)
+async def list_tasks(
+     f: Annotated[tasks.SearchResponse, Query()],
+     p: Annotated[tasks.Page, Query()],
+     sort: str = "-created_at",  
+     db: AsyncSession = Depends(get_db)
+):
+    return await search_tasks(f, sort, p, db)
 
 @router.get("/{id}",response_model=tasks.TaskResponse)
 async def all_task(id: int, 
@@ -104,7 +80,7 @@ async def all_task(id: int,
                    db: AsyncSession = Depends(get_db)):
     """Получение одного таска"""
     
-    stmt = select(Tasks).where(Tasks.id == id, Tasks.deleted_at is None)
+    stmt = select(Tasks).where(Tasks.id == id, Tasks.deleted_at.is_(None))
     result = await db.execute(stmt)
     answer = result.scalars().one_or_none()
     if answer is None:
@@ -482,7 +458,7 @@ async def creat_coments(
     EMAIL_PATTERN = r"(?i)(?<![\w.+-])[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+"
     email = re.findall(EMAIL_PATTERN, comment.body)
     for e in email:
-        email.get_email_user.delay(
+        get_email_task.delay(
         ronaldo.email,
         e,
         comment.body
@@ -575,7 +551,7 @@ async def create_tag(id: int,
 
     return {"message":"Тег присвоен таску"}
 
-@router.delete("/s/{id}/tags/{tag_id}")
+@router.delete("/{id}/tags/{tag_id}")
 async def tag_delete(id: int, 
                      tag_id: int,
                      user_id: int = Depends(security.scan_token),
@@ -698,10 +674,10 @@ async def task_attech(id: int,
 
 #-------------------------Работа файлами фильтр и пагинация файлов----------------------------------
 SORTABLE = {
-    "created_at": tasks.Task.created_at,
-    "due_date": tasks.Task.due_date,
-    "priority": tasks.Task.priority,
-    "title": tasks.Task.title,
+    "created_at": Tasks.created_at,
+    "due_date": Tasks.due_date,
+    "priority": Tasks.priority,
+    "title": Tasks.title,
 }
 
 def create_schem(tasks: str):
@@ -771,11 +747,4 @@ async def search_tasks(gon: tasks.SearchResponse,
         pages=-(-stmt // p.size),  
     )
 
-@router.get("/search", response_model=tasks.PagedTasks)
-async def list_tasks(
-     f: Annotated[tasks.SearchResponse, Query()],
-     p: Annotated[tasks.Page, Query()],
-     sort: str = "-created_at",  
-     db: AsyncSession = Depends(get_db)
-):
-    return await search_tasks(f, sort, p, db)
+

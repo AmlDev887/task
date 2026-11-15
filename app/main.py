@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from app.routers import auth, tasks, attachments, comments, health, projects, tags, users
 app = FastAPI(
     title = "Task Menejer API",
-    description= "JIra"
+    description= "Mini Jira"
 )
 
 app.include_router(auth.router)

@@ -1,7 +1,7 @@
 from fastapi import Depends, APIRouter, HTTPException, status
 from app.core import security
 from sqlalchemy import select,func
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from app.models.models import Projects, Users, ProjectMembers, Tasks
 from app.database.db import get_db
 from app.schemas import projects
@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from app.schemas import roles
 from datetime import date
-from tasks import get_email_task
+from app.routers.tasks import get_email_task
 
 router = APIRouter(prefix="/projects",
                    tags=["projects"])
@@ -215,7 +215,7 @@ async def member_user(id:int,
         
         recipient=target_user.email,
         subject="Вас добавили в проект!",
-        template_name="email/task_notification.html",
+        template_name="app/services/task_notification.html",
         context_data={
             "username": target_user.username,
             "task_title": budy.project.title if budy.project else "Рабочий проект",
@@ -265,6 +265,33 @@ async def change_member_role(id: int,
     await db.refresh(look)
 
     return {"message": "Роль участника успешно изменена"}
+
+@router.get("/project_info")
+async def get_info(db: AsyncSession = Depends(get_db)):
+    """Статистика тасков каждого участиника"""
+    stmt = await db.execute(select(Users).options(selectinload(Users.assigned_tasks),
+                                                  joinedload(Users.project)).where(
+                                                                Users.is_verified == True,
+                                                                Users.is_active == True))
+    result = stmt.unique().scalars().all()
+    response_data = []
+
+    for user in result:
+        
+        info_status = {}
+        
+        for task in user.assigned_tasks:
+            info_status[task.status] = info_status.get(task.status,0) + 1
+    
+        info = {
+                "username":user.full_name,
+                "project_name":[p.name for p in user.project] if user.project else ["Без проекта"],
+                "task_name":user.assigned_tasks.title,
+                "tasks_done": info_status
+            }
+        response_data.append(info)
+    
+    return response_data
 
 @router.delete("/{id}/members")
 async def member_user(id:int,
@@ -394,7 +421,7 @@ async def create_task(id:int,
             get_email_task.delay(
                 recipient=assignee_user.email,
                 subject=f"Новая задача в проекте: {update.title}",
-                template_name="email/task_notification.html",
+                template_name="app/services/task_notification.html",
                 context_data={
                     "username": assignee_user.username,
                     "task_title": update.title,

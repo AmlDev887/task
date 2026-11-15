@@ -9,10 +9,10 @@ class Settings(BaseSettings):
     DB_PORT: int
     DB_DATABASE: str
 
-    SMTP_SENDER = EmailStr
-    SMTP_PASSWORD = str
-    SMTP_SERVER = str
-    SMTP_PORT = int
+    SMTP_SENDER : EmailStr
+    SMTP_PASSWORD : str
+    SMTP_SERVER : str
+    SMTP_PORT : int
 
     SECRET_KEY: str
     SECRET_KEY_2: str

@@ -1,19 +1,17 @@
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from core.config import  SMTP_SENDER, SMTP_PASSWORD, SMTP_SERVER, SMTP_PORT
+from app.core.config import  settings
 from fastapi.templating import Jinja2Templates
 
-templates = Jinja2Templates(directory="templates")
 
 def send_email(recipient: str, subject: str, email_body: str, content_type):
-    sender = SMTP_SENDER
-    password = SMTP_PASSWORD
-    smtp_server = SMTP_SERVER
-    smtp_port = SMTP_PORT
+    sender = settings.SMTP_SENDER
+    smtp_server = settings.SMTP_SERVER
+    smtp_port = settings.SMTP_PORT
 
     msg = MIMEMultipart("alternative")
-    msg["FROM"] = sender
+    msg["From"] = sender
     msg["To"] = recipient
     msg["Subject"] = subject
 
@@ -21,8 +19,6 @@ def send_email(recipient: str, subject: str, email_body: str, content_type):
 
     try:
         with smtplib.SMTP(smtp_server,smtp_port) as server:
-            server.starttls()
-            server.login(sender, password)
             server.sendmail(sender, recipient, msg.as_string())
         print(f"Письмо успешно улетело на адрес: {recipient}")
 
