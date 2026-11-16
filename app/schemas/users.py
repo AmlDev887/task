@@ -7,18 +7,18 @@ class AddUser(BaseModel):
     full_name:str
 
 class UserLogin(BaseModel):
-    email: EmailStr | None = None
+    email: EmailStr
     full_name: str  = Field(min_length=2, max_length=60)
     password: str = Field(min_length=8)
 
-    @classmethod
     @field_validator("password")
+    @classmethod
     def scanner_password(cls,value):
         """Проверка пароля на присутвие букв и цифр"""
-        if True not in [char.isalpha() for char in value]:
-            raise ValueError("В пароле должно быть хотя бы одна буква")
-
-        if True not in [char.isdigit() for char in value]:
+        
+        if not any(char.isalpha() for char in value):
+            raise ValueError("В пароле должна быть хотя бы одна буква")
+        if not any(char.isdigit() for char in value):
             raise ValueError("В пароле должна быть хотя бы одна цифра")
         
         return value 

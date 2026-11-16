@@ -2,7 +2,7 @@ from pydantic import BaseModel,EmailStr
 
 class EmailVerify(BaseModel):
     email:EmailStr
-    code:int
+    code:str
 
 class EmailForgot(BaseModel):
     email:EmailStr

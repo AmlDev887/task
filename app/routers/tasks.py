@@ -10,19 +10,20 @@ from app.schemas import roles
 from pathlib import Path
 from datetime import datetime, timezone
 from sqlalchemy.orm import joinedload, selectinload
-from celery import Celery
 from app.database.db import SessionLocal
 import uuid
 import re
 from celery.schedules import crontab
 from app.workers.celery_app import celery, get_email_task
 import asyncio
+from sqlalchemy.orm.exc import StaleDataError
+import logging
 
 router = APIRouter(
     prefix="/tasks",
     tags=["tasks"]
 )
-
+logger = logging.getLogger(__name__)
 
 @celery.task()
 def get_status_task():
@@ -74,10 +75,17 @@ celery.conf.beat_schedule = {
 async def list_tasks(
      f: Annotated[tasks.SearchResponse, Query()],
      p: Annotated[tasks.Page, Query()],
-     sort: str = "-created_at",  
+     sort: str = "-created_at", 
+     user_id: int = Depends(security.scan_token), 
      db: AsyncSession = Depends(get_db)
 ):
-    return await search_tasks(f, sort, p, db)
+    user_projects = select(ProjectMembers.project_id).where(
+        ProjectMembers.user_id == user_id
+    )
+    base = create_schem(f).where(
+        Tasks.project_id.in_(user_projects)
+    )
+    return await search_tasks(f, sort, p, db, base)
     
 @router.get("/{id}",response_model=tasks.TaskResponse)
 async def all_task(id: int, 
@@ -144,25 +152,40 @@ async def update_task(id: int,
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail = "Таск не найден"
             )
+
+    if task.version != answer.version:
+        raise HTTPException(
+             status_code=status.HTTP_409_CONFLICT,
+             detail = "Версии не совпали"
+        )
     old_assignee_id = answer.assignee_id
     old_status = answer.status
+    pro_id = answer.project_id
     
     if task.assignee_id is not None:
-        pro_id = answer.project_id
         georg_ass = select(ProjectMembers).where(ProjectMembers.project_id == pro_id,
                                             ProjectMembers.user_id == task.assignee_id)
         ahaha = await db.execute(georg_ass)
         rfag = ahaha.scalars().one_or_none()    
-        
+    
         if rfag is None:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail = "Пользователь (приниматель) не нашлось")
-    
+
+    kimmi = select(Users).where(Users.id == task.assignee_id, Users.is_active == True)
+    grok = await db.execute(kimmi)
+    claude = grok.scalars().one_or_none()
+    if claude is None:
+        raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Нельзя назначить задачу неактивному пользователю"
+            )
     georg = select(ProjectMembers).where(ProjectMembers.project_id == pro_id,
                                             ProjectMembers.user_id == user_id) 
     wait = await db.execute(georg)
     rfag = wait.scalars().one_or_none()
+    
     if rfag is None:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -174,87 +197,97 @@ async def update_task(id: int,
             status_code = status.HTTP_403_FORBIDDEN,
             detail = "Вам доступ не разрешен"
         )
-    status = {
-        "todo":1,
-        "in_progress":2,
-        "review":3,
-        "done":4,
-        "cancelled":5
+    order = {
+    roles.TaskStatus.TODO: 1,
+    roles.TaskStatus.IN_PROGRESS: 2,
+    roles.TaskStatus.REVIEW: 3,
+    roles.TaskStatus.DONE: 4,
+    roles.TaskStatus.CANCELLED: 5
     }
-    if task_status_one != roles.TaskStatus.DONE and task.status == roles.TaskStatus.DONE:
-         answer.completed_at = datetime.now(timezone.utc)
-
-    if "status" in task.model_dump(exclude_unset=True):
+    if "status" in hunter:
         new_status = task.status
-    
-    if status[new_status] < status[answer.status]:
+        if task_status_one != roles.TaskStatus.DONE and task.status == roles.TaskStatus.DONE:
+            answer.completed_at = datetime.now(timezone.utc)
+
+    hunter = task.model_dump(exclude_unset=True)  
+    if not hunter:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Нельзя менять статус в таком порядке"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Нет данных для обновления"
         )
     
-    hunter = task.model_dump(exclude_unset=True)
-    for key,new_value in hunter.items():
-        old_value = getattr(answer,key,None)
-        if old_value != new_value:
-            history_update = History(
-                user_id = user_id,
-                task_id = id,
-                field = key,
-                old_val_str = old_value.value if hasattr(old_value, "value") else str(old_value) if old_value is not None else None,
-                new_val_str = new_value.value if hasattr(new_value, "value") else str(new_value) if new_value is not None else None
+    hunter.pop("version", None) 
+    if task.status:
+        if order[new_status] < order[answer.status]:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Нельзя менять статус в таком порядке"
             )
-            db.add(history_update)
-            setattr(answer,key,new_value)
-
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail = "Пользователь не найден"
-        )
-
-    await db.commit()
-    await db.refresh(answer)       
     
-    if task.assignee_id is not None and task.assignee_id != old_assignee_id:
-        user_stmt = select(Users).where(Users.id == task.assignee_id)
-        user_res = await db.execute(user_stmt)
-        assignee_user = user_res.scalars().one_or_none()
-        
-        if assignee_user:
-            get_email_task.delay(
-                recipient=assignee_user.email,
-                subject=f"Вам назначена задача: {answer.title}",
-                template_name="app/services/task_notification.html",
-                context_data={
-                    "username": assignee_user.username,
-                    "task_title": answer.title,
-                    "intro_text": "Вам была назначена новая задача.",
-                    "action_url": f"https://my-app.com/projects/{answer.project_id}/tasks/{answer.id}"
-                }
-            )
-
-    if "status" in hunter and hunter["status"] != old_status:
-    
-        if answer.creator_id and answer.creator_id != user_id:
-            creator_stmt = select(Users).where(Users.id == answer.creator_id)
-            creator_res = await db.execute(creator_stmt)
-            creator_user = creator_res.scalars().one_or_none()
+    try:
+        for key,new_value in hunter.items():
             
-            if creator_user:
+            old_value = getattr(answer,key,None)
+            if old_value != new_value:
+                history_update = History(
+                    user_id = user_id,
+                    task_id = id,
+                    field = key,
+                    old_value = old_value.value if hasattr(old_value, "value") else str(old_value) if old_value is not None else None,
+                    new_value = new_value.value if hasattr(new_value, "value") else str(new_value) if new_value is not None else None
+                )
+                db.add(history_update)
+                setattr(answer,key,new_value)
+
+        await db.commit()
+        await db.refresh(answer)       
+    
+    except StaleDataError :
+        await db.rollback()
+        raise HTTPException(
+              status_code = status.HTTP_409_CONFLICT
+         )
+    try:
+        if task.assignee_id is not None and task.assignee_id != old_assignee_id:
+            user_stmt = select(Users).where(Users.id == task.assignee_id)
+            user_res = await db.execute(user_stmt)
+            assignee_user = user_res.scalars().one_or_none()
+            
+            if assignee_user:
                 get_email_task.delay(
-                    recipient=creator_user.email,
-                    subject=f"Статус задачи изменен: {answer.title}",
+                    recipient=assignee_user.email,
+                    subject=f"Вам назначена задача: {answer.title}",
                     template_name="app/services/task_notification.html",
                     context_data={
-                        "username": creator_user.username,
+                        "username": assignee_user.full_name,
                         "task_title": answer.title,
-                        "intro_text": f"Статус задачи изменился на: <b>{answer.status}</b>",
+                        "intro_text": "Вам была назначена новая задача.",
                         "action_url": f"https://my-app.com/projects/{answer.project_id}/tasks/{answer.id}"
                     }
                 )
-
+        if "status" in hunter and hunter["status"] != old_status:
+        
+            if answer.creator_id and answer.creator_id != user_id:
+                creator_stmt = select(Users).where(Users.id == answer.creator_id)
+                creator_res = await db.execute(creator_stmt)
+                creator_user = creator_res.scalars().one_or_none()
+                
+                if creator_user:
+                    get_email_task.delay(
+                        recipient=creator_user.email,
+                        subject=f"Статус задачи изменен: {answer.title}",
+                        template_name="app/services/task_notification.html",
+                        context_data={
+                            "username": creator_user.full_name,
+                            "task_title": answer.title,
+                            "intro_text": f"Статус задачи изменился на: <b>{answer.status}</b>",
+                            "action_url": f"https://my-app.com/projects/{answer.project_id}/tasks/{answer.id}"
+                        }
+                    )
+    except Exception as ex:
+         logger.error(f"Ошибка отправки уведомления: {ex}")
+   
     return answer
-
 
 @router.delete("/{id}")
 async def task_delete(id: int, 
@@ -475,18 +508,19 @@ async def creat_coments(
         detail="Отправтель не найден")
         
     EMAIL_PATTERN = r"(?i)(?<![\w.+-])[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+"
-    email = re.findall(EMAIL_PATTERN, comment.body)
-    for e in email:
-        email.get_email_user.delay(
-        ronaldo.email,
-        e,
-        comment.body
-    )
-    
+    email = set(re.findall(EMAIL_PATTERN, comment.body))
+   
     db.add(comments)
     await db.commit()
     await db.refresh(comments)
 
+    for e in email:
+        get_email_task.delay(
+                            recipient=e, 
+                            subject="Вас упомянули", 
+                            body=comment.body
+                            )
+    
     return {"message": "Коммент создан"}
 
 @router.get("/{id}/comments",response_model = comments.CommentResponse)
@@ -749,10 +783,13 @@ def sort_scanner(stmt, sort: str = "created_at"):
 async def search_tasks(gon: tasks.SearchResponse,
                  sort:str, 
                  p: tasks.Page,
-                 db: AsyncSession = Depends(get_db) ):
+                 db: AsyncSession,
+                 base= None):
     """Главная функция для работы поиска,сортировки и фильтрации"""
-
-    base = create_schem(gon)
+    
+    if base is None:
+        base = create_schem(gon)
+    
     count_stmt = select(func.count(Tasks.id)).select_from(base.order_by(None).subquery())
     total_count = await db.scalar(count_stmt) or 0
 
@@ -762,11 +799,11 @@ async def search_tasks(gon: tasks.SearchResponse,
 
     pages_count = -(-total_count // p.size) if p.size > 0 and total_count > 0 else 0
 
-        return tasks.PagedTasks(
-        items=rows,
-        total=total_count,
-        page=p.page,
-        size=p.size,
-        pages=pages_count,  
-    )
+    return tasks.PagedTasks(
+    items=rows,
+    total=total_count,
+    page=p.page,
+    size=p.size,
+    pages=pages_count,  
+)
 

@@ -38,12 +38,20 @@ async def create_project(project: projects.ProjectCreate,
     
     result = project.model_dump()
     result["owner_id"] = user_id
+
     answer = Projects(**result)
     
     db.add(answer)
-    await db.commit()
-    await db.refresh(answer)
+    await db.flush()
 
+    db.add(ProjectMembers(
+        project_id = answer.id,
+        user_id = user_id,
+        role = roles.ProjectRole.OWNER
+    ))
+    await db.commit()         
+    await db.refresh(answer)
+    
     return {"message":"Проект создан"}
 
 @router.get("/",response_model=List[projects.ProjectResponse])

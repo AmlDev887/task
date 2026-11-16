@@ -41,7 +41,6 @@ class TaskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     due_date: Optional[date] = None
-    assignee_id: Optional[int] = None
     status: Optional[str] = None
     priority: Optional[str] = None
 

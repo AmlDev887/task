@@ -2,7 +2,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from app.core.config import  settings
-from fastapi.templating import Jinja2Templates
+from fastapi import HTTPException,status
 
 
 def send_email(recipient: str, subject: str, email_body: str, content_type):
@@ -24,7 +24,8 @@ def send_email(recipient: str, subject: str, email_body: str, content_type):
 
     except Exception as exc:
         print(f"Ошибка при отправке письма: {exc}")
-
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail = "Письмо не отправилось")
     
 
 

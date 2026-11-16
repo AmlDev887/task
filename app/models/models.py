@@ -20,8 +20,8 @@ class Projects(Base, TimestampMixin):
     owner_id:Mapped[int] = mapped_column(ForeignKey("users.id"))
 
     user:Mapped["Users"] = relationship(back_populates="project")
-    task:Mapped[List["Tasks"]] = relationship(back_populates="project")
-    project_member:Mapped[List["ProjectMembers"]] = relationship(back_populates="project")
+    task:Mapped[List["Tasks"]] = relationship(back_populates="project", passive_deletes=True)
+    project_member:Mapped[List["ProjectMembers"]] = relationship(back_populates="project", passive_deletes=True)
 
 class Users(Base, TimestampMixin):
     __tablename__ = "users"
@@ -75,10 +75,10 @@ class Tasks(Base, TimestampMixin):
     creator:Mapped["Users"] = relationship(back_populates="created_tasks", foreign_keys=[creator_id])
     assignee:Mapped[Optional["Users"]] = relationship(back_populates="assigned_tasks", foreign_keys=[assignee_id])
     project:Mapped["Projects"] = relationship(back_populates="task")
-    tasktags:Mapped[List["TaskTags"]] = relationship(back_populates="task")
-    comment:Mapped[List["Comments"]] = relationship(back_populates="task")
+    tasktags:Mapped[List["TaskTags"]] = relationship(back_populates="task", passive_deletes=True)
+    comment:Mapped[List["Comments"]] = relationship(back_populates="task", passive_deletes=True)
     history:Mapped[List["History"]] = relationship(back_populates="task")
-    attachments:Mapped[List["Attachments"]] = relationship(back_populates="task")
+    attachments:Mapped[List["Attachments"]] = relationship(back_populates="task", passive_deletes=True)
 
     __mapper_args__ = {"version_id_col":version}
 
@@ -133,8 +133,8 @@ class History(Base, TimestampMixin):
     user_id:Mapped[int] = mapped_column(ForeignKey("users.id",ondelete = "CASCADE"))
     task_id:Mapped[int] = mapped_column(ForeignKey("tasks.id",ondelete = "CASCADE"))
     field:Mapped[str] = mapped_column(String(60)) 
-    old_value:Mapped[Optional[str]] = mapped_column(String(100))
-    new_value:Mapped[Optional[str]] = mapped_column(String(100))
+    old_value:Mapped[Optional[str]] = mapped_column(String(225))
+    new_value:Mapped[Optional[str]] = mapped_column(String(225))
 
     user: Mapped["Users"] = relationship(back_populates="history")
     task: Mapped["Tasks"]= relationship(back_populates="history")

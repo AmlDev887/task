@@ -1,0 +1,10 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+    <h2>Привет, {{ username }}!</h2>
+    <p><strong>{{ inviter_name }}</strong> приглашает вас присоединиться к проекту <span class="highlight">«{{ project_name }}»</span> в Task Manager.</p>
+    
+    <p style="text-align: center;">
+        <a href="{{ invite_url }}" class="btn">Принять приглашение</a>
+    </p>
+{% endblock %}

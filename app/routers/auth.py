@@ -17,6 +17,10 @@ from app.routers.tasks import get_email_task
 import secrets
 import hashlib
 import jwt
+import logging
+from sqlalchemy.exc import IntegrityError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/auth",
@@ -79,26 +83,39 @@ async def add(new_user: UserLogin, db: AsyncSession = Depends(get_db)):
         await db.commit()
         await db.refresh(answer)
     
-    except Exception:
+    except IntegrityError:
+        
         await db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail = 'Не удалось сохранить'
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Такой email существует"
+        )
+    except Exception:
+        await db.rollback()
+        logger.exception("Ошибка при регистрации пользователя %s", new_user.email)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Не удалось сохранить, попробуйте позже"
         )
     contex_data = {
-        "username":new_user.full_name,
-        "код подтверждения":code,
-        "button_label":"Подтвердить почту"
-    } 
-    get_email_task.delay(
-                        new_user, 
-                        "код для подтверждения email", 
-                        contex_data, 
-                        template_name = "app/services/confirm.html"
-                         )
+        "username": new_user.full_name,
+        "intro_text": f"Ваш код подтверждения: {code}",
+        "action_url": "https://my-app.com/verify",  
+    }
+    try:
+        get_email_task.apply_async(
+            args=(new_user.email, "код для подтверждения email"),
+            kwargs={
+                "context_data": contex_data,
+                "template_name": "app/services/confirm.html",
+            },
+            retry=False,  
+        )
+    except Exception:
+        logger.exception("Не удалось поставить письмо в очередь для %s", new_user.email)
     return answer
 
-@router.get("/verify")
+@router.post("/verify")
 async def email_verify(verify:auth.EmailVerify,db: AsyncSession = Depends(get_db)):
     
     stmt = select(Users).where(Users.email == verify.email)
@@ -109,9 +126,10 @@ async def email_verify(verify:auth.EmailVerify,db: AsyncSession = Depends(get_db
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Пользователь не найден"
         )
-    second = select(EmailTokens).where(EmailTokens.user_id == user.id) 
+    second = select(EmailTokens).where(EmailTokens.user_id == user.id,
+                                       EmailTokens.purpose == roles.EmailTokensEnum.VERIFY,).order_by(EmailTokens.id.desc())
     regen = await db.execute(second)
-    yummy = regen.scalars().one_or_none()
+    yummy = regen.scalars().first()
 
     if yummy is None:
          raise HTTPException(
@@ -119,19 +137,16 @@ async def email_verify(verify:auth.EmailVerify,db: AsyncSession = Depends(get_db
                     detail="email  не найден"
                 )
     my_code = heshing(verify.code)
-    if yummy.token != my_code or yummy.expires_at < datetime.now(timezone.utc) or yummy.used_at is None:
+    if yummy.token != my_code or yummy.expires_at < datetime.now(timezone.utc) or yummy.used_at is not None:
         raise HTTPException(
             status_code = status.HTTP_401_UNAUTHORIZED,
             detail = "Неверный код"
         )
     
     user.is_verified = True
+    yummy.used_at = datetime.now(timezone.utc)
     await db.commit()
-    await db.refresh(user) 
 
-    templates_map = {
-
-    }
     return {"message": "Email успешно подтверждён"}
 
 @router.post("/login")

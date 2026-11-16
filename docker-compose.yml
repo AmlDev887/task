@@ -1,0 +1,73 @@
+# Один образ (Dockerfile) запускается тремя способами: app, celery_worker, celery_beat.
+# Якорь &app-base: общие настройки, чтобы не копировать их трижды.
+x-app-base: &app-base
+  build: .
+  image: task-manager-api
+  env_file: .env                  # берём переменные из вашего .env
+  environment:                    # а эти значения ПЕРЕБИВАЮТ .env внутри Docker:
+    DB_HOST: postgres             #   в сети Docker сервисы находят друг друга по имени,
+    DB_PORT: "5432"               #   а не по localhost.
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+    SMTP_SERVER: mailpit
+    SMTP_PORT: "1025"
+  depends_on:
+    postgres:
+      condition: service_healthy  # ждём, пока Postgres реально готов принимать запросы
+    redis:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${DB_USER}           # значения подставляются из вашего .env
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
+    volumes:
+      - pgdata:/var/lib/postgresql/data   # данные не пропадают при перезапуске контейнера
+    ports:
+      - "5434:5432"                       # 5433 снаружи, чтобы не конфликтовать с вашим локальным Postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_DATABASE}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    # порт наружу не открыт: Redis нужен только контейнерам.
+    # Так он не конфликтует с Redis в вашей WSL на 6379.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "8025:8025"    # веб-интерфейс: http://localhost:8025
+      - "1025:1025"    # SMTP (нужен, если приложение запущено не в Docker)
+
+  app:
+    <<: *app-base
+    # Сначала миграции, потом сервер.
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "8000:8000"    # http://localhost:8000/docs
+    volumes:
+      - uploads:/code/TASK_MENEJER   # загруженные файлы переживают пересоздание контейнера
+
+  celery_worker:
+    <<: *app-base
+    # В Linux-контейнере --pool=solo не нужен (он нужен только на Windows).
+    command: celery -A app.workers.celery_app:celery worker --loglevel=info
+
+  celery_beat:
+    <<: *app-base
+    command: celery -A app.workers.celery_app:celery beat --loglevel=info
+
+volumes:
+  pgdata:
+  uploads:
