@@ -31,11 +31,20 @@ class User(BaseModel):
     hashed_password:str
     is_verified:bool
 #------------------User Response GET----------------------------------
+
+
 class UserProjectResponse(BaseModel):
     name:str
     description:str
+
     model_config = ConfigDict(from_attributes=True)
 
+class UserProjectMembers(BaseModel):
+    role:roles.ProjectRole
+    project:List[UserProjectResponse]
+
+    model_config = ConfigDict(from_attributes=True)
+    
 class UserResponse(BaseModel):
     id:int
     email:EmailStr | None = None
@@ -43,7 +52,7 @@ class UserResponse(BaseModel):
     role:roles.OrderRoleUser
     is_active:bool
     is_verified:bool
-    project:List[UserProjectResponse]
+    project:List[UserProjectMembers]
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -39,27 +39,34 @@ async def create_project(project: projects.ProjectCreate,
     result = project.model_dump()
     result["owner_id"] = user_id
 
-    answer = Projects(**result)
+    wallet = Projects(**result)
     
-    db.add(answer)
+    db.add(wallet)
     await db.flush()
 
     db.add(ProjectMembers(
-        project_id = answer.id,
+        project_id = wallet.id,
         user_id = user_id,
         role = roles.ProjectRole.OWNER
     ))
+
+
     await db.commit()         
-    await db.refresh(answer)
+    await db.refresh(wallet)
+
+    kimmi = select(Projects).where(Projects.name == project.name)
+    grok = await db.execute(kimmi)
+    claude = grok.scalars().one_or_none()
     
-    return {"message":"Проект создан"}
+    return {"id":claude.id,
+            "message":"Проект создан"}
 
 @router.get("/",response_model=List[projects.ProjectResponse])
 async def project_info(page: int = 1,       
                        size: int = 20,
                        user_id: int = Depends(security.scan_token),
                        db: AsyncSession = Depends(get_db)):
-
+    """Вывод всех проетков пользователя"""
     
     offset = (page - 1) * size
     stmt = select(Projects).where(Projects.owner_id == user_id).order_by(Projects.id.asc()).offset(offset).limit(size)
@@ -228,7 +235,7 @@ async def member_user(id:int,
         template_name="app/services/task_notification.html",
         context_data={
             "username": target_user.full_name,
-            "task_title": budy.project.title if budy.project else "Рабочий проект",
+            "task_title": budy.project.name if budy.project else "Рабочий проект",
             "intro_text": f"Вы были добавлены в проект с ролью: <b>{member.role}</b>",
             "action_url": f"https://my-app.com/projects/{id}"
         }

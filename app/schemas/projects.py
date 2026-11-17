@@ -8,12 +8,13 @@ class ProjectCreate(BaseModel):
     description: str | None = Field(default=None, max_length=225)
 
 class ProjectResponse(BaseModel):
+    id: int
     name:str
     description:str 
     owner_id:int
 
 class CreateOwner(BaseModel):
-    user_id:str
+    user_id:int
     role:roles.ProjectRole
 
 class ProjectOwnerDelete(BaseModel):

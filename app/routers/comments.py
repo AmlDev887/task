@@ -1,4 +1,4 @@
-from fastapi import Depends, APIRouter, HTTPException, status
+from fastapi import Depends, APIRouter, HTTPException, status, Query
 from app.core import security
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload, joinedload
@@ -14,10 +14,12 @@ router = APIRouter(prefix="/comments",
 
 @router.get("/", response_model = List[comments.CommentsResponse])
 async def get_comments(user_id: int = Depends(security.scan_token),
+                       limit: int = Query(20, ge=1, le=100),
+                       offset: int = Query(0, ge=0),
                        db: AsyncSession =  Depends(get_db)):
     """Вывод всех комментов"""
     
-    stmt = select(Comments).options(joinedload(Comments.task)).where(Comments.author_id == user_id)
+    stmt = select(Comments).options(joinedload(Comments.task)).where(Comments.author_id == user_id).limit(limit).offset(offset)
     result = await db.execute(stmt)
     answer = result.scalars().all()
 
@@ -41,10 +43,11 @@ async def get_comments(user_id: int = Depends(security.scan_token),
                 user.append(grok)
         
         commentary = {
+            "id": a.id,
             "body" : a.body,
             "task_name" : a.task.title,
             "receipt": user[0].full_name if user else None,
-            "email" : user if email else None
+            "email": [u.email for u in user]
         }
 
         all_comment.append(commentary)
@@ -104,3 +107,37 @@ async def comment_delete(id: int,
 
     return {"message":"Коммент удален"}
 
+@router.get("/search", response_model=comments.CommenstSearchResponse)
+async def search_comments(text: str = Query(..., description="Текст для поиска"),
+                user_id: int = Depends(security.scan_token),
+                page: int = Query(1, ge=1),
+                size: int = Query(20, ge=1, le=100),
+                db: AsyncSession =  Depends(get_db)):
+    """Поиск комментариев по введенному текста"""
+    
+    offset = (page - 1)* size
+    safe = text.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
+    
+    if not safe.split():
+        raise HTTPException(
+            status_code = status.HTTP_400_BAD_REQUEST,
+            detail="пустое поле поиска"
+        )
+
+    stmt = select(Comments).where(Comments.author_id == user_id, Comments.body.ilike(f"%{safe}%", escape="\\")).order_by(Comments.id.asc()).limit(size).offset(offset)
+    result = await db.execute(stmt)
+    answer = result.scalars().all()
+
+    if not answer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail = "У вас нет комменатриев"
+        )
+    comm = []
+    for a in answer:
+        comm.append({"id":a.id,
+                     "body":a.body})
+    
+    return {
+            "body":comm
+        }

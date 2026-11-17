@@ -1,7 +1,7 @@
 from pydantic import BaseModel,ConfigDict,EmailStr
 from app.schemas import roles
 from datetime import date,datetime
-
+from typing import List
 class CommentCreate(BaseModel):
 
     task_id: int
@@ -35,9 +35,12 @@ class CommentResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class CommentsResponse(BaseModel):
-
+    
+    id: int | None
     body: str | None
     task_name: str | None
     receipt: str | None
-    email: EmailStr | None
+    email: list[EmailStr] | None = None
 
+class CommenstSearchResponse(BaseModel):
+    body: list[dict]
