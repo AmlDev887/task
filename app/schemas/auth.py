@@ -7,9 +7,13 @@ class EmailVerify(BaseModel):
 class EmailForgot(BaseModel):
     email:EmailStr
     password:str
-    is_verified:bool
+
 
 class EmailReset(BaseModel):
     email:EmailStr
     code:str
     new_password:str
+
+class RefreshToken(BaseModel):
+
+    refresh_token: str

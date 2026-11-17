@@ -113,6 +113,7 @@ async def add(new_user: UserLogin, db: AsyncSession = Depends(get_db)):
         )
     except Exception:
         logger.exception("Не удалось поставить письмо в очередь для %s", new_user.email)
+    
     return answer
 
 @router.post("/verify")
@@ -170,8 +171,9 @@ async def check_user(user:Annotated[OAuth2PasswordRequestForm,Depends()], db: As
 
     
 @router.post("/refresh")
-async def refresh_token(token:Annotated[str,Depends(oauth2_scheme)]):
+async def refresh_token(token:auth.RefreshToken):
     """Создание нового токена провркой refresh-а"""
+    
     black = await redis.redis_async.get(name=f"black_list:{token}")
     if black:
         raise HTTPException(
@@ -180,7 +182,7 @@ async def refresh_token(token:Annotated[str,Depends(oauth2_scheme)]):
         )
     try:
         bayong = jwt.decode(
-            token,
+            token.refresh_token,
             settings.SECRET_KEY_2,
             algorithms=["HS256"]
         )
@@ -289,7 +291,7 @@ async def reset_password(reset:auth.EmailReset,db: AsyncSession = Depends(get_db
 
     await db.commit()
     await db.refresh(forgot)
-    await redis.redis_async.delete(name=f"reset:{reset.code}")
+    await redis.redis_async.delete(f"reset:{reset.code}")
 
     
-    return {"message":"Код успешно изменен"}
+    return {"message":"Пароль успешно изменен"}

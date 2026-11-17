@@ -1,11 +1,13 @@
 from pydantic import BaseModel, Field, EmailStr, ConfigDict, field_validator
 from app.schemas import roles
-
+from typing import List
 class AddUser(BaseModel):
     id:int
     email:EmailStr
     full_name:str
 
+    model_config = ConfigDict(from_attributes=True)
+    
 class UserLogin(BaseModel):
     email: EmailStr
     full_name: str  = Field(min_length=2, max_length=60)
@@ -30,7 +32,7 @@ class User(BaseModel):
     is_verified:bool
 #------------------User Response GET----------------------------------
 class UserProjectResponse(BaseModel):
-    name:set
+    name:str
     description:str
     model_config = ConfigDict(from_attributes=True)
 
@@ -41,7 +43,7 @@ class UserResponse(BaseModel):
     role:roles.OrderRoleUser
     is_active:bool
     is_verified:bool
-    project:UserProjectResponse
+    project:List[UserProjectResponse]
 
     model_config = ConfigDict(from_attributes=True)
 

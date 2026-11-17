@@ -1,20 +1,62 @@
 from fastapi import Depends, APIRouter, HTTPException, status
 from app.core import security
 from sqlalchemy import select
-from app.models.models import  Comments
+from sqlalchemy.orm import selectinload, joinedload
+from app.models.models import  Comments,Users
 from app.database.db import get_db
 from app.schemas import comments
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
+import re
 
 router = APIRouter(prefix="/comments",
                    tags=["comments"])
+
+@router.get("/", response_model = List[comments.CommentsResponse])
+async def get_comments(user_id: int = Depends(security.scan_token),
+                       db: AsyncSession =  Depends(get_db)):
+    """Вывод всех комментов"""
+    
+    stmt = select(Comments).options(joinedload(Comments.task)).where(Comments.author_id == user_id)
+    result = await db.execute(stmt)
+    answer = result.scalars().all()
+
+    all_comment = []
+
+    if not answer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail = "У вас нет комментариев"
+        ) 
+    EMAIL_PATTERN = r"(?i)(?<![\w.+-])[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+"
+    
+    for a in answer:
+        email = set(re.findall(EMAIL_PATTERN, a.body))
+        user = []
+        for e in email:
+            send = select(Users).where(Users.email == e)
+            kimmi = await db.execute(send)
+            grok = kimmi.scalars().one_or_none()
+            if grok:
+                user.append(grok)
+        
+        commentary = {
+            "body" : a.body,
+            "task_name" : a.task.title,
+            "receipt": user[0].full_name if user else None,
+            "email" : user if email else None
+        }
+
+        all_comment.append(commentary)
+
+    return all_comment
 
 @router.patch("/{id}")
 async def my_comments(id: int,
                       body: comments.CommentUpdate,
                       user_id: int = Depends(security.scan_token),
                       db: AsyncSession =  Depends(get_db)):
-    """Мои комменты"""
+    """Изменение коммента"""
     
     stmt = select(Comments).where(Comments.author_id == user_id, Comments.id == id)
     result = await db.execute(stmt)

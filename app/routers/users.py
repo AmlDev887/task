@@ -1,7 +1,7 @@
 from fastapi import Depends, APIRouter, HTTPException, status
 from app.core import security
 from sqlalchemy import select
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from app.models import models
 from app.database.db import get_db
 from app.schemas import users,roles
@@ -24,13 +24,7 @@ async def user_info(user_id: int = Depends(security.scan_token),db: AsyncSession
             status_code = status.HTTP_404_NOT_FOUND,
             detail = "Пользователь не найден.Пройдите авторизацию если не прошли"
         )
-    if answer.role != (roles.OrderRoleUser.USER,
-                       roles.OrderRoleUser.ADMIN):
-        
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail = "Вам доступ запрещен"
-        )
+    
     return answer
 
 
@@ -88,7 +82,7 @@ async def user(user_id: int = Depends(security.scan_token),
     
     offset = (page - 1) * size
     
-    stmt_2 = select(models.Users).order_by(models.Users.id.asc()).offset(offset).limit(size)
+    stmt_2 = select(models.Users).options(selectinload(models.Users.project)).order_by(models.Users.id.asc()).offset(offset).limit(size)
     result_2 = await db.execute(stmt_2)
     answer_2 = result_2.scalars().all()
 

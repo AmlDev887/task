@@ -1,7 +1,7 @@
 from pwdlib import PasswordHash
 from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated
-from jwt.exceptions import InvalidTokenError,PyJWTError
+from jwt.exceptions import PyJWTError
 from fastapi import Depends, HTTPException, APIRouter, status
 from app.core.config import settings
 import jwt
@@ -46,7 +46,7 @@ async def scan_token(token:Annotated[str,Depends(oauth2_scheme)]):
 
         return int(user_id)
        
-    except InvalidTokenError:
+    except PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Неверный токен,пройдите авторизацию",

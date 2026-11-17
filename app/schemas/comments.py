@@ -1,4 +1,4 @@
-from pydantic import BaseModel,ConfigDict
+from pydantic import BaseModel,ConfigDict,EmailStr
 from app.schemas import roles
 from datetime import date,datetime
 
@@ -10,7 +10,7 @@ class CommentCreate(BaseModel):
 
 class CommentUpdate(BaseModel):
 
-    body: str
+    body: str | None 
 class CommentScheme(BaseModel):
     id: int
     task_id: int
@@ -33,3 +33,11 @@ class CommentResponse(BaseModel):
     comments: list[CommentScheme]
 
     model_config = ConfigDict(from_attributes=True)
+
+class CommentsResponse(BaseModel):
+
+    body: str | None
+    task_name: str | None
+    receipt: str | None
+    email: EmailStr | None
+

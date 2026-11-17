@@ -46,8 +46,6 @@ class TaskUpdate(BaseModel):
 
 
 class TaskCommentCreate(BaseModel):
-
-    task_id: int
     body:str
 
 class SearchResponse(BaseModel):
