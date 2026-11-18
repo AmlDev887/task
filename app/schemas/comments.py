@@ -1,7 +1,9 @@
 from pydantic import BaseModel,ConfigDict,EmailStr
+from typing import Optional
 from app.schemas import roles
 from datetime import date,datetime
 from typing import List
+
 class CommentCreate(BaseModel):
 
     task_id: int
@@ -19,20 +21,24 @@ class CommentScheme(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
-
 class CommentResponse(BaseModel):
+    id: int
     title: str
-    description: str | None
+    created_at: Optional[datetime] = None
+    description: str | None = None
     status: roles.TaskStatus
     priority: roles.TaskPriority
-    due_date: date | None
-    completed_at: datetime | None
+    due_date: date | None = None
+    completed_at: datetime | None = None
     is_deleted: bool
     version: int
+    
+    comment: list[CommentScheme]
 
-    comments: list[CommentScheme]
-
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="ignore" 
+    )
 
 class CommentsResponse(BaseModel):
     

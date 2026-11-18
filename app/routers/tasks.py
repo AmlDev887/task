@@ -423,7 +423,7 @@ async def task_hard_delete(id:int,
     await db.commit()
     return {"message":"Удалено"}
 
-@router.get("/{id}/history",response_model = history.HistorySchemeResponse)
+@router.get("/{id}/history",response_model = List[history.HistorySchemeResponse])
 async def tasks_history(id:int, 
                         creator_id: int = Depends(security.scan_token),
                         db:AsyncSession = Depends(get_db)):
@@ -556,7 +556,7 @@ async def creat_coments(
     
     return {"message": "Коммент создан"}
 
-@router.get("/{id}/comments",response_model = comments.CommentResponse)
+@router.get("/{id}/comments")
 async def get_task_comments(id: int,
                       user_id: int = Depends(security.scan_token),
                       db: AsyncSession = Depends(get_db)):
@@ -739,7 +739,7 @@ async def task_attech(id: int,
          )
     
     with open(file_path, "wb") as button:
-        while shoko := await fayl.read(1024*1024):
+        while shoko := await fayl.read(1024*1024*10):
              button.write(shoko)
 
     attachment = Attachments(
