@@ -41,7 +41,7 @@ class UserProjectResponse(BaseModel):
 
 class UserProjectMembers(BaseModel):
     role:roles.ProjectRole
-    project:List[UserProjectResponse]
+    project:UserProjectResponse
 
     model_config = ConfigDict(from_attributes=True)
     
@@ -52,7 +52,7 @@ class UserResponse(BaseModel):
     role:roles.OrderRoleUser
     is_active:bool
     is_verified:bool
-    project:List[UserProjectMembers]
+    project_member:List[UserProjectMembers]
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -49,7 +49,7 @@ class ProjectMembers(Base, TimestampMixin):
     id:Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     project_id:Mapped[int] = mapped_column(ForeignKey("projects.id",  ondelete="CASCADE"))
     user_id:Mapped[int] = mapped_column(ForeignKey("users.id",  ondelete="CASCADE")) 
-    role:Mapped[ProjectRole] = mapped_column(Enum(ProjectRole, name = "project_role"))
+    role:Mapped[ProjectRole] = mapped_column(Enum(ProjectRole, name = "project_role", values_callable=lambda x: [e.value for e in x]))
 
     user:Mapped["Users"] = relationship(back_populates="project_member")
     project:Mapped["Projects"] = relationship(back_populates="project_member")

@@ -283,9 +283,11 @@ async def change_member_role(id: int,
 
     return {"message": "Роль участника успешно изменена"}
 
-@router.get("/project_info")
-async def get_info(db: AsyncSession = Depends(get_db)):
+@router.get("/project_info", response_model = List[projects.ProjectInfoResponse])
+async def get_info(user_id: int = Depends(security.scan_token),
+                   db: AsyncSession = Depends(get_db)):
     """Статистика тасков каждого участиника"""
+    
     stmt = await db.execute(select(Users).options(selectinload(Users.assigned_tasks),
                                                   joinedload(Users.project)).where(
                                                                 Users.is_verified == True,
@@ -440,7 +442,7 @@ async def create_task(id:int,
                 subject=f"Новая задача в проекте: {update.title}",
                 template_name="app/services/task_notification.html",
                 context_data={
-                    "username": assignee_user.username,
+                    "username": assignee_user.full_name,
                     "task_title": update.title,
                     "task_description": update.description,
                     "priority": update.priority,

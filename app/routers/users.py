@@ -84,7 +84,7 @@ async def user(user_id: int = Depends(security.scan_token),
     
     stmt_2 = select(models.Users).options(selectinload(models.Users.project_member).selectinload(models.ProjectMembers.project)).order_by(models.Users.id.asc()).offset(offset).limit(size)
     
-    result_2 = await db.execute(stmt_2)
+    result_2 = (await db.execute(stmt_2)).unique()
     answer_2 = result_2.unique().scalars().all()
 
     return answer_2

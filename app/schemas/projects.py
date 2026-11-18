@@ -1,17 +1,17 @@
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from app.schemas import roles
 from datetime import date
-from typing import Optional
+from typing import Optional, List, Dict
 
 class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=50)
     description: str | None = Field(default=None, max_length=225)
 
-class ProjectResponse(BaseModel):
-    id: int
-    name:str
-    description:str 
-    owner_id:int
+class ProjectInfoResponse(BaseModel):
+    username: str
+    project_name: List[str]
+    task_name: List[str]
+    tasks_done: Dict[str, int]
 
 class CreateOwner(BaseModel):
     user_id:int
@@ -66,3 +66,11 @@ class ProjectUpdate(BaseModel):
 class EditRole(BaseModel):
 
     role: str = roles.ProjectRole
+
+class ProjectResponse(BaseModel):
+ 
+    username: str
+    project_name: str
+    task_name: str
+    tasks_done: str
+
