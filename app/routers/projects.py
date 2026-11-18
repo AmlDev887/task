@@ -61,12 +61,12 @@ async def create_project(project: projects.ProjectCreate,
     return {"id":claude.id,
             "message":"Проект создан"}
 
-@router.get("/",response_model=List[projects.ProjectResponse])
+@router.get("/")
 async def project_info(page: int = 1,       
                        size: int = 20,
                        user_id: int = Depends(security.scan_token),
                        db: AsyncSession = Depends(get_db)):
-    """Вывод всех проетков пользователя"""
+    """Вывод всех проектов пользователя"""
     
     offset = (page - 1) * size
     stmt = select(Projects).where(Projects.owner_id == user_id).order_by(Projects.id.asc()).offset(offset).limit(size)
@@ -76,7 +76,36 @@ async def project_info(page: int = 1,
 
     return answer
 
-@router.get("/{id}",response_model=projects.ProjectResponse)
+
+@router.get("/project_info", response_model = List[projects.ProjectInfoResponse])
+async def get_info(user_id: int = Depends(security.scan_token),
+                   db: AsyncSession = Depends(get_db)):
+    """Статистика тасков каждого участиника"""
+    
+    stmt = await db.execute(select(Users).options(selectinload(Users.assigned_tasks),
+                                                  joinedload(Users.project)).where(
+                                                                Users.is_verified == True,
+                                                                Users.is_active == True))
+    result = stmt.unique().scalars().all()
+    response_data = []
+
+    for user in result:
+        
+        info_status = {}
+        
+        for task in user.assigned_tasks:
+            info_status[task.status] = info_status.get(task.status,0) + 1
+    
+        info = {
+                "username":user.full_name,
+                "project_name":[p.name for p in user.project] if user.project else ["Без проекта"],
+                "tasks_st": info_status
+            }
+        response_data.append(info)
+    
+    return response_data
+
+@router.get("/{id}")
 async def project_get(id: int, 
                       user_id: int = Depends(security.scan_token),
                       db: AsyncSession = Depends(get_db)):
@@ -125,8 +154,11 @@ async def project_update(id:int,
     for_iterate = update.model_dump(exclude_unset=True)
 
     for key,value in for_iterate.items():
-         setattr(answer,key,value)
-
+        if len(value.strip()) == 0 or value == "string":
+            continue
+        
+        setattr(answer,key,value)
+    
     await db.commit()
     await db.refresh(answer)
 
@@ -282,35 +314,6 @@ async def change_member_role(id: int,
     await db.refresh(look)
 
     return {"message": "Роль участника успешно изменена"}
-
-@router.get("/project_info", response_model = List[projects.ProjectInfoResponse])
-async def get_info(user_id: int = Depends(security.scan_token),
-                   db: AsyncSession = Depends(get_db)):
-    """Статистика тасков каждого участиника"""
-    
-    stmt = await db.execute(select(Users).options(selectinload(Users.assigned_tasks),
-                                                  joinedload(Users.project)).where(
-                                                                Users.is_verified == True,
-                                                                Users.is_active == True))
-    result = stmt.unique().scalars().all()
-    response_data = []
-
-    for user in result:
-        
-        info_status = {}
-        
-        for task in user.assigned_tasks:
-            info_status[task.status] = info_status.get(task.status,0) + 1
-    
-        info = {
-                "username":user.full_name,
-                "project_name":[p.name for p in user.project] if user.project else ["Без проекта"],
-                "task_name":user.assigned_tasks.title,
-                "tasks_done": info_status
-            }
-        response_data.append(info)
-    
-    return response_data
 
 @router.delete("/{id}/members")
 async def member_user(id:int,

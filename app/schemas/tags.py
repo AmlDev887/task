@@ -6,7 +6,6 @@ class CreateTag(BaseModel):
     color:str
 
 class ResponseTag(BaseModel):
-
     name:str
     color:str
 

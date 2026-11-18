@@ -61,4 +61,18 @@ class UserUpdate(BaseModel):
     new_password: str | None = None
     email: EmailStr | None = None
     full_name: str | None = None
+
+#-----------------------get("/me)----------------------------
+class ProjectMe(BaseModel):
+    name: str
+
+class UserResponseMe(BaseModel):
+
+    id:int
+    email:EmailStr 
+    full_name:str
+    role:roles.OrderRoleUser
+    is_active:bool
+    is_verified:bool
+    project:List[ProjectMe]
     

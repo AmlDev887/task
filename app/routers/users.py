@@ -11,7 +11,7 @@ from typing import List
 router = APIRouter(prefix="/users",
                    tags=["users"])
 
-@router.get("/me",response_model=users.UserResponse)
+@router.get("/me",response_model=users.UserResponseMe)
 async def user_info(user_id: int = Depends(security.scan_token),db: AsyncSession = Depends(get_db)):
     """Выводим пользователя"""
     

@@ -7,11 +7,11 @@ class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=50)
     description: str | None = Field(default=None, max_length=225)
 
+
 class ProjectInfoResponse(BaseModel):
     username: str
     project_name: List[str]
-    task_name: List[str]
-    tasks_done: Dict[str, int]
+    tasks_st: dict
 
 class CreateOwner(BaseModel):
     user_id:int

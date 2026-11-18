@@ -80,7 +80,7 @@ async def tags_info(user_id: int = Depends(security.scan_token),
 async def tags_info(id:int,
                     user_id: int = Depends(security.scan_token),
                     db: AsyncSession = Depends(get_db)):
-    """Создание тега"""
+    """Вывод всех тег"""
     
     stmt = select(Users).where(Users.id == user_id)
     result = await db.execute(stmt)
