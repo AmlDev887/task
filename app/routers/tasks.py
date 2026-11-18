@@ -73,7 +73,7 @@ celery.conf.beat_schedule = {
 
 @router.get("/search", response_model=tasks.PagedTasks)
 async def list_tasks(
-     f: Annotated[tasks.SearchResponse, Query()],
+     f: Annotated[tasks.SearchResponse, Query()],                                                                                           
      p: Annotated[tasks.Page, Query()],
      sort: str = "-created_at", 
      user_id: int = Depends(security.scan_token), 
@@ -88,7 +88,7 @@ async def list_tasks(
     return await search_tasks(f, sort, p, db, base)
     
 @router.get("/{id}",response_model=tasks.TaskResponse)
-async def all_task(id: int, 
+async def get_task(id: int, 
                    user_id: int = Depends(security.scan_token),
                    db: AsyncSession = Depends(get_db)):
     """Получение одного таска"""
@@ -133,10 +133,12 @@ async def all_task(id: int,
 
 @router.patch("/{id}")
 async def update_task(id: int, 
-                task: tasks.TaskUpdate,
+                task: Annotated[tasks.TaskUpdate, Query()],
                 user_id: int = Depends(security.scan_token),
                 db: AsyncSession = Depends(get_db)
                 ):
+    """Измененение таска"""
+
     body = select(Tasks).where(Tasks.id == id )
     runner = await db.execute(body)
     answer = runner.scalars().one_or_none()
@@ -204,17 +206,17 @@ async def update_task(id: int,
     roles.TaskStatus.DONE: 4,
     roles.TaskStatus.CANCELLED: 5
     }
-    if "status" in hunter:
-        new_status = task.status
-        if task_status_one != roles.TaskStatus.DONE and task.status == roles.TaskStatus.DONE:
-            answer.completed_at = datetime.now(timezone.utc)
-
+    
     hunter = task.model_dump(exclude_unset=True)  
     if not hunter:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Нет данных для обновления"
         )
+    if "status" in  hunter:
+            new_status = task.status
+            if task_status_one != roles.TaskStatus.DONE and task.status == roles.TaskStatus.DONE:
+                answer.completed_at = datetime.now(timezone.utc)
     
     hunter.pop("version", None) 
     if task.status:
@@ -421,11 +423,12 @@ async def task_hard_delete(id:int,
     await db.commit()
     return {"message":"Удалено"}
 
-@router.get("/{id}/history",response_model =List[history.HistorySchemeResponse])
+@router.get("/{id}/history",response_model = history.HistorySchemeResponse)
 async def tasks_history(id:int, 
                         creator_id: int = Depends(security.scan_token),
                         db:AsyncSession = Depends(get_db)):
     """История тасков"""
+    
     stmt_1 = select(Tasks).where(Tasks.id == id)
     result_1 = await db.execute(stmt_1)
     answer_1 = result_1.scalars().one_or_none()
@@ -455,13 +458,43 @@ async def tasks_history(id:int,
             detail = "Вам доступ не разрешен"
         )
     
-    stmt = select(History).where(History.task_id == id)
+    stmt = select(History).options(joinedload(History.task),
+                                   joinedload(History.user)).where(History.task_id == id)
     result = await db.execute(stmt)
     answer = result.scalars().all()
+    
     if not answer:
          return []
     
-    return answer
+    pump = [
+        "id","user","task","field","old_value","new_value"
+    ]
+
+    pump = [
+        "id", "user", "task", "field", "old_value", "new_value"
+    ]
+
+    for_response = []
+    for a in answer:
+        context = {}
+        for key in pump:
+            # Проверяем, есть ли такой атрибут у объекта
+            if not hasattr(a, key):
+                continue
+                
+            value = getattr(a, key)
+            
+            
+            if key == "user" and value is not None:
+                context["user_name"] = value.full_name 
+            elif key == "task" and value is not None:
+                context["task_name"] = value.title
+            else:
+                context[key] = value
+
+        for_response.append(context)
+
+    return for_response
 
 @router.post("/{id}/comments")
 async def creat_coments(

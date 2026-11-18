@@ -25,23 +25,50 @@ class ProjectTask(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-class TaskResponse(BaseModel):
-    project: ProjectTask
-    title:str
-    description:Optional[str] = None
+class UserShortResponse(BaseModel):
+    id: int
+    full_name: str
 
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProjectShortResponse(BaseModel):
+    id: int
+    name: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+class TaskResponse(BaseModel):
+   
+    id: int
+    title: str
+    description: str | None
+    status: roles.TaskStatus
+    priority: roles.TaskPriority
+    due_date: date | None
+    project_id: int
+    creator_id: int
+    assignee_id: int | None
+    completed_at: datetime | None
+    version: int
+
+    creator: UserShortResponse
+    assignee: Optional[UserShortResponse]
+    project: ProjectShortResponse
+    
     model_config = ConfigDict(from_attributes=True)
 
 #------------------- PATCH REQUEST TASKS ------------------------
 
 class TaskUpdate(BaseModel):
 
+    version: int
     assignee_id:Optional[int] = None
     title: Optional[str] = None
     description: Optional[str] = None
     due_date: Optional[date] = None
-    status: Optional[str] = None
-    priority: Optional[str] = None
+    status: roles.TaskStatus | None = None
+    priority: roles.TaskPriority | None = None
 
 
 class TaskCommentCreate(BaseModel):
